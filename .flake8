@@ -1,0 +1,28 @@
+[flake8]
+
+ignore = 
+    # E203 (not PEP 8 compliant) ignored to not conflict with black
+    E203,
+    # W503 (not PEP 8 compliant) ignored to not conflict with black
+    W503,
+    # D105 Missing docstring in magic method. I have no issue with this.
+    # D Let pylint pick up all the doc errors
+    D
+
+exclude =
+    *.ipynb_checkpoints
+
+
+per-file-ignores =
+    # to permit importing * to __init__
+    src/valimp/__init__.py:F403,F401
+    tests/test_valimp.py:E101,E501,E741,W191
+    # D103 Missing docstring in public function - not required for all tests
+    # D102 Missing docstring in public function - not required for all tests
+    # D401 First line should be in imperative moood - not useful to describe fixtures
+    tests/*.py:D103,D102,D401
+
+#max-line-length extended in line with black default style
+max-line-length = 100
+
+docstring-convention=numpy
