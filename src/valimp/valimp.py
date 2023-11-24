@@ -389,6 +389,9 @@ def validates_against_hint(
         [1] None if 'obj' conforms to hint or `rtrn_error` is False,
         otherwise error advising why validaition failed.
     """
+    if hint is typing.Any:
+        return VALIDATED
+
     origin = typing.get_origin(hint)
 
     # handle Union hint

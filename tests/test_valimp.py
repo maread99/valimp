@@ -107,10 +107,13 @@ def f() -> abc.Iterator[abc.Callable]:
         aa: Annotated[Literal[3, 4, 5], "spam meta", "foo meta"] = 4,
         bb: Optional[int] = None,
         cc: bool = True,
+        dd: Any = 4,
+        ee: Optional[dict[str, Any]] = None,
         *,
         kwonly_req_a: bool,
         kwonly_req_b: typing.Annotated[Optional[bool], "meta"],
         kwonly_opt: typing.Annotated[Optional[bool], "meta"] = None,
+        kwonly_opt_b: typing.Annotated[Any, "meta"] = "kwonly_opt_b",
     ) -> dict[str, Any]:
         return dict(
             a=a,
@@ -142,9 +145,12 @@ def f() -> abc.Iterator[abc.Callable]:
             aa=aa,
             bb=bb,
             cc=cc,
+            dd=dd,
+            ee=ee,
             kwonly_req_a=kwonly_req_a,
             kwonly_req_b=kwonly_req_b,
             kwonly_opt=kwonly_opt,
+            kwonly_opt_b=kwonly_opt_b,
         )
 
     yield func
@@ -218,10 +224,13 @@ def inst() -> abc.Iterator[object]:
             aa: Annotated[Literal[3, 4, 5], "spam meta", "foo meta"] = 4,
             bb: Optional[int] = None,
             cc: bool = True,
+            dd: Any = 4,
+            ee: Optional[dict[str, Any]] = None,
             *,
             kwonly_req_a: bool,
             kwonly_req_b: typing.Annotated[Optional[bool], "meta"],
             kwonly_opt: typing.Annotated[Optional[bool], "meta"] = None,
+            kwonly_opt_b: typing.Annotated[Any, "meta"] = "kwonly_opt_b",
         ) -> dict[str, Any]:
             return dict(
                 a=a,
@@ -253,9 +262,12 @@ def inst() -> abc.Iterator[object]:
                 aa=aa,
                 bb=bb,
                 cc=cc,
+                dd=dd,
+                ee=ee,
                 kwonly_req_a=kwonly_req_a,
                 kwonly_req_b=kwonly_req_b,
                 kwonly_opt=kwonly_opt,
+                kwonly_opt_b=kwonly_opt_b,
             )
 
     yield A()
@@ -355,6 +367,8 @@ def valid_args_opt_as_kwargs() -> abc.Iterator[tuple[dict[str, Any], dict[str, A
         aa=3,
         bb=3,
         cc=False,
+        dd="dd",
+        ee={"one": 1, "two": 2.2, "three": "three"},
     )
     expected_rtrns = inputs.copy()  # all returned as passed
     yield inputs, expected_rtrns
@@ -403,7 +417,7 @@ def valid_kwargs_opt() -> abc.Iterator[tuple[dict[str, Any], dict[str, Any]]]:
 
     Values differ from default values.
     """
-    inputs = dict(kwonly_opt=True)
+    inputs = dict(kwonly_opt=True, kwonly_opt_b=22)
     expected_rtrns = inputs.copy()  # all returned as passed
     yield inputs, expected_rtrns
 
