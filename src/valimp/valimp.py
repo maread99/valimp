@@ -938,3 +938,28 @@ def parse(f) -> collections.abc.Callable:
         return f(**new_as_kwargs)
 
     return wrapped_f
+
+
+def parse_cls(cls):
+    """Decorate a class to parse the constructor's arguments.
+
+    Can be used to verify input to a `dataclasses.dataclass`. In the
+    following example the a and b parameters will be parsed in the same
+    manner as if the __init__ method were decorated with @parse:
+
+        from dataclasses import dataclass
+        from typing import Union
+        from valimp import parse_cls, Coerce
+
+        @parse_cls
+        @dataclass
+        class ADataCls:
+
+            a: str
+            b: Annotated[Union[str, int], Coerce(str)]
+
+    NB The @parse_cls decorator must be placed above the @dataclass
+    decorator.
+    """
+    cls.__init__ = parse(cls.__init__)
+    return cls

@@ -1,6 +1,7 @@
 """Tests for market_prices.input module."""
 
 from collections import abc
+import dataclasses
 import inspect
 import re
 import sys
@@ -274,6 +275,85 @@ def inst() -> abc.Iterator[object]:
 
 
 @pytest.fixture
+def datacls() -> abc.Iterator[typing.Type]:
+    """Dataclass with type annotations.
+
+    Constructor's signature as 'func' fixture.
+    """
+
+    @m.parse_cls
+    @dataclasses.dataclass
+    class DataCls:
+        """A decorated dataclass."""
+
+        a: Annotated[int, m.Parser(lambda n, obj, _: obj + 4)]
+        b: Annotated[Union[str, int, float], m.Coerce(int)]
+        c: Annotated[
+            Union[str, int],
+            m.Coerce(str),
+            m.Parser(lambda n, obj, p: obj + "_suffix"),
+        ]
+        d: Annotated[
+            Union[float, int], m.Parser(lambda n, obj, p: obj + 10), m.Coerce(str)
+        ]
+        e: str
+        f: Annotated[str, m.Parser(lambda name, obj, _: name + "_" + obj)]
+        g: Annotated[
+            str, m.Parser(lambda _, obj, params: obj + "_" + params["e"] + "_bar")
+        ]
+        h: Annotated[
+            str,
+            m.Parser(
+                lambda name, obj, params: name + "_" + obj + "_" + params["e"] + "_bar"
+            ),
+        ]
+        i: Annotated[int, "spam meta", "foo meta"]
+        j: Literal["spam", "foo"]
+        k: list[str]
+        l: dict[str, int]
+        m: abc.Mapping[str, int]
+        n: tuple[str, ...]
+        o: tuple[str, int, set]
+        p: set[str]
+        q: abc.Sequence[Union[str, int, set]]
+        r: abc.Sequence[str]
+        s: abc.Callable[[str], str]
+        t: abc.Callable[[str, int], str]
+        u: abc.Callable[..., str]
+        v: abc.Callable[..., str]
+        w: Union[int, str, None, Literal["spam", "foo"]]
+        x: Annotated[Union[str, int, float], "spam meta", "foo meta"]
+        y: Annotated[
+            Optional[Union[str, int, float]],
+            "foo meta",
+            m.Parser(lambda n, o, p: o),
+        ]
+        z: Annotated[
+            Optional[Union[str, int, float]],
+            "spam meta",
+            m.Parser(lambda n, o, p: o),
+        ] = None  # this annotation requires fixing by `fix_hints_for_none_default``
+        aa: Annotated[Literal[3, 4, 5], "spam meta", "foo meta"] = 4
+        bb: Optional[int] = None
+        cc: bool = True
+        dd: Any = 4
+        ee: Optional[dict[str, Any]] = None
+
+        # until 3.10, set default values for 'should be' required kwargs
+        kwonly_req_a: bool = True
+        kwonly_req_b: typing.Annotated[Optional[bool], "meta"] = True
+        # NOTE can change to kwarg only when minimum Python version is raised to 3.10
+        # _: dataclasses.KW_ONLY
+        # kwonly_req_a: bool
+        # kwonly_req_b: typing.Annotated[Optional[bool], "meta"]
+
+        kwonly_opt: typing.Annotated[Optional[bool], "meta"] = None
+        kwonly_opt_b: typing.Annotated[Any, "meta"] = "kwonly_opt_b"
+
+    yield DataCls
+
+
+@pytest.fixture
 def dflt_values() -> abc.Iterator[dict[str, Any]]:
     """Default values of optional arguments (positional and keyword-only)."""
     yield dict(z=None, aa=4, bb=None, cc=True, kwonly_opt=None)
@@ -443,16 +523,18 @@ def valid_args_all(
     yield inputs, expected_rtrns
 
 
-def assertion(rtrn: Any, expected: Any):
-    if rtrn is None:
+def assertion(rtrn: Any, name: str, expected: Any):
+    v = getattr(rtrn, name) if dataclasses.is_dataclass(rtrn) else rtrn[name]
+    if v is None:
         assert expected is None
     else:
-        assert rtrn == expected
+        assert v == expected
 
 
 def test_general_valid(
     f,
     inst,
+    datacls,
     valid_args_req_as_kwargs,
     valid_kwargs_req,
     dflt_values,
@@ -469,16 +551,16 @@ def test_general_valid(
         pos req args positionally, pos opt args positionally, all keyword-only
         pos req args positionally, pos opt args as kwarg, all keyword-only
     """
-    for func in (f, inst.func):
-        rtrns0 = func(**valid_args_req_as_kwargs[0], **valid_kwargs_req[0])
-        rtrns1 = func(*valid_args_req, **valid_kwargs_req[0])
-        rtrns2 = func(
+    for func in (f, inst.func, datacls):
+        rtrn0 = func(**valid_args_req_as_kwargs[0], **valid_kwargs_req[0])
+        rtrn1 = func(*valid_args_req, **valid_kwargs_req[0])
+        rtrn2 = func(
             *valid_args_req,
             *valid_args_opt,
             **valid_kwargs_req[0],
             **valid_kwargs_opt[0],
         )
-        rtrns3 = func(
+        rtrn3 = func(
             *valid_args_req,
             **valid_args_opt_as_kwargs[0],
             **valid_kwargs_req[0],
@@ -486,30 +568,30 @@ def test_general_valid(
         )
 
         for k, v in valid_args_req_as_kwargs[1].items():
-            assertion(rtrns0[k], v)
-            assertion(rtrns1[k], v)
-            assertion(rtrns2[k], v)
-            assertion(rtrns3[k], v)
+            assertion(rtrn0, k, v)
+            assertion(rtrn1, k, v)
+            assertion(rtrn2, k, v)
+            assertion(rtrn3, k, v)
 
         for k, v in valid_kwargs_req[1].items():
-            assertion(rtrns0[k], v)
-            assertion(rtrns1[k], v)
-            assertion(rtrns2[k], v)
-            assertion(rtrns3[k], v)
+            assertion(rtrn0, k, v)
+            assertion(rtrn1, k, v)
+            assertion(rtrn2, k, v)
+            assertion(rtrn3, k, v)
 
         # as default values
         for k, v in dflt_values.items():
-            assertion(rtrns0[k], v)
-            assertion(rtrns1[k], v)
+            assertion(rtrn0, k, v)
+            assertion(rtrn1, k, v)
 
         # as expected non-default values
 
         for k, v in valid_args_opt_as_kwargs[1].items():
-            assertion(rtrns2[k], v)
-            assertion(rtrns3[k], v)
+            assertion(rtrn2, k, v)
+            assertion(rtrn3, k, v)
         for k, v in valid_kwargs_opt[1].items():
-            assertion(rtrns2[k], v)
-            assertion(rtrns3[k], v)
+            assertion(rtrn2, k, v)
+            assertion(rtrn3, k, v)
 
 
 def test_union_optional_valid(f, valid_args_all):
@@ -532,8 +614,8 @@ def test_union_optional_valid(f, valid_args_all):
     expected_rtrns |= chgs
 
     rtrns = f(**inputs)
-    for k, v in rtrns.items():
-        assertion(v, expected_rtrns[k])
+    for k in rtrns:
+        assertion(rtrns, k, expected_rtrns[k])
 
     chgs_1 = dict(
         w=None,
@@ -545,8 +627,8 @@ def test_union_optional_valid(f, valid_args_all):
     expected_rtrns |= chgs_1
 
     rtrns = f(**inputs)
-    for k, v in rtrns.items():
-        assertion(v, expected_rtrns[k])
+    for k in rtrns:
+        assertion(rtrns, k, expected_rtrns[k])
 
     chgs_2 = dict(
         y=None,
@@ -556,8 +638,8 @@ def test_union_optional_valid(f, valid_args_all):
     expected_rtrns |= chgs_2
 
     rtrns = f(**inputs)
-    for k, v in rtrns.items():
-        assertion(v, expected_rtrns[k])
+    for k in rtrns:
+        assertion(rtrns, k, expected_rtrns[k])
 
 
 def test_tuple_valid():
@@ -596,8 +678,8 @@ def test_tuple_valid():
     assert rtrn["f"] == (0, 1, 2, {3})
 
 
-INVALID_MSG = re.escape(
-    """The following inputs to 'func' do not conform with the corresponding type annotation:
+INVALID_MSG = "The following inputs to '(func|__init__)' do " + re.escape(
+    """not conform with the corresponding type annotation:
 
 h
 	Takes type <class 'str'> although received '3' of type <class 'int'>.
@@ -655,9 +737,9 @@ kwonly_req_a
 )
 
 
-def test_invalid_types(f, inst, valid_args):
+def test_invalid_types(f, inst, datacls, valid_args):
     regex = re.compile("^" + INVALID_MSG + "$")
-    for func in (f, inst.func):
+    for func in (f, inst.func, datacls):
         with pytest.raises(m.InputsError, match=regex):
             func(
                 *valid_args[:7],
