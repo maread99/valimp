@@ -4,7 +4,7 @@
 <!-- UPDATE BADGE ADDRESSES! -->
 [![PyPI](https://img.shields.io/pypi/v/valimp)](https://pypi.org/project/valimp/) ![Python Support](https://img.shields.io/pypi/pyversions/valimp) [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-In Python use type hints to validate, parse and coerce inputs to **public functions**. 
+In Python use type hints to validate, parse and coerce inputs to **public functions and dataclasses**. 
 
 This is the sole use of `valimp`. It's a single short module with no depenencies that does one thing and makes it simple to do.
 
@@ -130,7 +130,30 @@ The following inputs to 'public_function' do not conform with the corresponding 
 b
 	Takes input that conforms with <(<class 'int'>, <class 'float'>)> although received 'invalid input' of type <class 'str'>.
 ```
+Use all the same functionality to validate, parse and coerce the fields of a dataclass...
+```python
+from valimp import parse_cls
+import dataclasses
 
+@parse_cls  # place valimp decorator above the dataclass decorator
+@dataclasses.dataclass
+class ADataclass:
+    
+    a: str
+    b: Annotated[
+        Union[str, int],
+        Coerce(str),
+        Parser(lambda name, obj, params: obj + f" {name} {params['a']}")
+    ]
+
+rtrn = ADataclass("I'm a and will appear at the end of b", 33)
+dataclasses.asdict(rtrn)
+```
+output:
+```
+{'a': "I'm a and will appear at the end of b",
+ 'b': "33 b I'm a and will appear at the end of b"}
+```
 ## Installation
 
 `$ pip install valimp`
@@ -147,16 +170,16 @@ Further documentation can be found in the module docstring of [valimp.py](https:
 ### Why even validate input type?
 Some may argue that validating the type of public inputs is not pythonic and we can 'duck' out of it and let the errors arise where they may. I'd argue that for the sake of adding a decorator I'd rather raise an intelligible error message than have to respond to an issue asking 'why am I getting this error...'.
 
-> :information_source: `valimp` is only intended for handling inputs to **public functions**. For internal validation, consider using a type checker (for example, [mypy](https://github.com/python/mypy)). 
+> :information_source: `valimp` is only intended for handling inputs to **public functions and dataclasses**. For internal validation, consider using a type checker (for example, [mypy](https://github.com/python/mypy)). 
 
-Also, I like the option of abstracting away all parsing, coercion and validation of public inputs and just receiving the formal parameter as required. For example, public methods in [market-prices](https://github.com/maread99/market_prices) often include a 'date' parameter. I like to offer users the convenience to pass this as either a `str`, a `datetime.date` or a `pandas.Timestamp`, although internally I want it as a `pandas.Timestamp`. I can do this with Valimp by simply including `Coerce(pandas.Timestamp)` to the metadata of the type annotation of each 'date' parameter. I also need to validate that the input is timezone-naive and does indeed represent a date rather than a time. I can do this be defining a single `valimp.Parser` and similarly including it to the annotation metadata of the 'date' parameters. Everything's abstracted away. With a little understanding of type annotations the user can see what's going on by simple inspection of the function's signature (as included within the standard help).
+Also, I like the option of abstracting away all parsing, coercion and validation of public inputs and just receiving the formal parameter as required. For example, public methods in [market-prices](https://github.com/maread99/market_prices) often include a 'date' parameter. I like to offer users the convenience to pass this as either a `str`, a `datetime.date` or a `pandas.Timestamp`, although internally I want it as a `pandas.Timestamp`. I can do this with Valimp by simply including `Coerce(pandas.Timestamp)` to the metadata of the type annotation of each 'date' parameter. I also need to validate that the input is timezone-naive and does indeed represent a date rather than a time. I can do this by defining a single `valimp.Parser` and similarly including it to the annotation metadata of the 'date' parameters. Everything's abstracted away. With a little understanding of type annotations the user can see what's going on by simple inspection of the function's signature (as included within the standard help).
 
 ### Why wouldn't I just use Pydantic?
-[Pydantic](https://github.com/pydantic/pydantic) is orientated towards the validation of inputs to dataclasses. If that's what you're after then you should definitely be looking there.
+[Pydantic](https://github.com/pydantic/pydantic) is orientated towards the validation of inputs to dataclasses. Whilst the Valimp `@parse_cls` decorator does this well for non-complex cases, if you're looking to do more then Pydantic is the place to go.
 
-The Pydantic V2 `@validate_call` decorator does provide for validating function input against type hints. However, I think it's [fair to say](https://github.com/pydantic/pydantic/issues/6794) that it's less functional than the `@validate_arguments` decorator of Pydantic V1 (of note, in V2 it's not possible to validate later parameters based on values received by earlier parameters). This loss of functionality, together with finding `@validate_arguments` somewhat clunky to do anything beyond simple type validation, led me to write `valimp`.
+As for validating public function input, in the early releases of Pydantic V2 the `@validate_call` decorator failed to provide for validating later parameters based on values received by earlier parameters (a [regression](https://github.com/pydantic/pydantic/issues/6794) from the Pydantic V1 `@validate_arguments` decorator). This loss of functionality, together with finding Pydantic somewhat clunky to do anything beyond simple type validation, is what led me to write `valimp`. (I believe functionality to validate later parameters based on values receive by earlier parameters may have since been restored in Pydantic V2, see the [issue](https://github.com/pydantic/pydantic/issues/6794).)
 
-If you only want to validate the type of function inputs then Pydantic V2 `@validate_call` will do the trick. If you're after additional validation, parsing or coercion then chances are you'll find `valimp` to be a simpler option. If you want to be able to dynamically reference earlier parameters when parsing/validating then definitely have a look at `valimp`.
+In short, if you only want to validate the type of function inputs then Pydantic V2 `@validate_call` will do the trick. If you're after additional validation, parsing or coercion then chances are you'll find `valimp` to be a simpler option.
 
 ## Limitations and Development
 
