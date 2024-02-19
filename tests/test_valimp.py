@@ -354,6 +354,113 @@ def datacls() -> abc.Iterator[typing.Type]:
 
 
 @pytest.fixture
+def f_with_packed() -> abc.Iterator[abc.Callable]:
+    """As `f` with *args and **kwargs.
+
+    Fixture not intended to directly test *args and **kwargs but rather to
+    ensure behaviour their enclusion does not change behaviour from `f`
+    save for as would be expected by containers to scoop up excess args.
+    """
+
+    @m.parse
+    def func(
+        a: Annotated[int, m.Parser(lambda n, obj, _: obj + 4)],
+        b: Annotated[Union[str, int, float], m.Coerce(int)],
+        c: Annotated[
+            Union[str, int], m.Coerce(str), m.Parser(lambda n, obj, p: obj + "_suffix")
+        ],
+        d: Annotated[
+            Union[float, int], m.Parser(lambda n, obj, p: obj + 10), m.Coerce(str)
+        ],
+        e: str,
+        f: Annotated[str, m.Parser(lambda name, obj, _: name + "_" + obj)],
+        g: Annotated[
+            str, m.Parser(lambda _, obj, params: obj + "_" + params["e"] + "_bar")
+        ],
+        h: Annotated[
+            str,
+            m.Parser(
+                lambda name, obj, params: name + "_" + obj + "_" + params["e"] + "_bar"
+            ),
+        ],
+        i: Annotated[int, "spam meta", "foo meta"],
+        j: Literal["spam", "foo"],
+        k: list[str],
+        l: dict[str, int],
+        m: abc.Mapping[str, int],
+        n: tuple[str, ...],
+        o: tuple[str, int, set],
+        p: set[str],
+        q: abc.Sequence[Union[str, int, set]],
+        r: abc.Sequence[str],
+        s: abc.Callable[[str], str],
+        t: abc.Callable[[str, int], str],
+        u: abc.Callable[..., str],
+        v: abc.Callable[..., str],
+        w: Union[int, str, None, Literal["spam", "foo"]],
+        x: Annotated[Union[str, int, float], "spam meta", "foo meta"],
+        y: Annotated[
+            Optional[Union[str, int, float]], "foo meta", m.Parser(lambda n, o, p: o)
+        ],
+        z: Annotated[
+            Optional[Union[str, int, float]], "spam meta", m.Parser(lambda n, o, p: o)
+        ] = None,  # this annotation requires fixing by `fix_hints_for_none_default``
+        aa: Annotated[Literal[3, 4, 5], "spam meta", "foo meta"] = 4,
+        bb: Optional[int] = None,
+        cc: bool = True,
+        dd: Any = 4,
+        ee: Optional[dict[str, Any]] = None,
+        *args,
+        kwonly_req_a: bool,
+        kwonly_req_b: typing.Annotated[Optional[bool], "meta"],
+        kwonly_opt: typing.Annotated[Optional[bool], "meta"] = None,
+        kwonly_opt_b: typing.Annotated[Any, "meta"] = "kwonly_opt_b",
+        **kwargs,
+    ) -> dict[str, Any]:
+        return dict(
+            a=a,
+            b=b,
+            c=c,
+            d=d,
+            e=e,
+            f=f,
+            g=g,
+            h=h,
+            i=i,
+            j=j,
+            k=k,
+            l=l,
+            m=m,
+            n=n,
+            o=o,
+            p=p,
+            q=q,
+            r=r,
+            s=s,
+            t=t,
+            u=u,
+            v=v,
+            w=w,
+            x=x,
+            y=y,
+            z=z,
+            aa=aa,
+            bb=bb,
+            cc=cc,
+            dd=dd,
+            ee=ee,
+            args=args,
+            kwonly_req_a=kwonly_req_a,
+            kwonly_req_b=kwonly_req_b,
+            kwonly_opt=kwonly_opt,
+            kwonly_opt_b=kwonly_opt_b,
+            kwargs=kwargs,
+        )
+
+    yield func
+
+
+@pytest.fixture
 def dflt_values() -> abc.Iterator[dict[str, Any]]:
     """Default values of optional arguments (positional and keyword-only)."""
     yield dict(z=None, aa=4, bb=None, cc=True, kwonly_opt=None)
@@ -455,6 +562,12 @@ def valid_args_opt_as_kwargs() -> abc.Iterator[tuple[dict[str, Any], dict[str, A
 
 
 @pytest.fixture
+def valid_args_extra() -> abc.Iterator[tuple[int, str, int, int]]:
+    """Valid args for extra positional arguments."""
+    yield (3, "three", 3, 0)
+
+
+@pytest.fixture
 def valid_args_req(valid_args_req_as_kwargs) -> abc.Iterator[list[Any]]:
     """Valid values for required positional arguments."""
     yield list(valid_args_req_as_kwargs[0].values())
@@ -503,6 +616,12 @@ def valid_kwargs_opt() -> abc.Iterator[tuple[dict[str, Any], dict[str, Any]]]:
 
 
 @pytest.fixture
+def valid_kwargs_extra() -> abc.Iterator[dict[str, Any], dict[str, Any]]:
+    """Valid kwargs for extra positional arguments."""
+    yield {"kw_xtra0": 4, "kw_xtra1": "four_one", "kw_xtra2": 4.2}
+
+
+@pytest.fixture
 def valid_kwargs(
     valid_kwargs_req, valid_kwargs_opt
 ) -> abc.Iterator[tuple[dict[str, Any], dict[str, Any]]]:
@@ -535,8 +654,11 @@ def test_general_valid(
     f,
     inst,
     datacls,
+    f_with_packed,
     valid_args_req_as_kwargs,
+    valid_args_extra,
     valid_kwargs_req,
+    valid_kwargs_extra,
     dflt_values,
     valid_args_req,
     valid_args_opt_as_kwargs,
@@ -546,19 +668,24 @@ def test_general_valid(
     """General for valid inputs.
 
     Tests return as expected when passing:
-        pos req args as kwargs, passing no optional args and verifying defaults.
-        pos req args positionally, passing no optional args and verifying defaults.
-        pos req args positionally, pos opt args positionally, all keyword-only
-        pos req args positionally, pos opt args as kwarg, all keyword-only
+        0 pos req args as kwargs, passing no optional args and verifying defaults.
+        1 pos req args positionally, passing no optional args and verifying defaults.
+        2 pos req args positionally, pos opt args positionally, pos extra args if applic,
+            all keyword-only, extra kwargs if applic
+        3 pos req args positionally, pos opt args as kwarg, all keyword-only
     """
-    for func in (f, inst.func, datacls):
+    for func in (f, inst.func, datacls, f_with_packed):
         rtrn0 = func(**valid_args_req_as_kwargs[0], **valid_kwargs_req[0])
         rtrn1 = func(*valid_args_req, **valid_kwargs_req[0])
+        extra_args = valid_args_extra if func is f_with_packed else tuple()
+        extra_kwargs = valid_kwargs_extra if func is f_with_packed else {}
         rtrn2 = func(
             *valid_args_req,
             *valid_args_opt,
+            *extra_args,
             **valid_kwargs_req[0],
             **valid_kwargs_opt[0],
+            **extra_kwargs,
         )
         rtrn3 = func(
             *valid_args_req,
@@ -737,36 +864,48 @@ kwonly_req_a
 )
 
 
-def test_invalid_types(f, inst, datacls, valid_args):
+def test_invalid_types(f, inst, f_with_packed, datacls, valid_args):
     regex = re.compile("^" + INVALID_MSG + "$")
-    for func in (f, inst.func, datacls):
+    for func in (f, inst.func, datacls, f_with_packed):
+        # include valid extra args if function provides for them, to verify
+        # that their inclusion doesn't change errors or error message.
+        extra_args = ["x_arg0", 1, 2.0] if func is f_with_packed else []  # valid
+        extra_kwargs = (
+            {"x_kwarg0": "x_kwarg0", "x_kwarg1": 11, "x_kwarg2": 22}
+            if func is f_with_packed
+            else {}
+        )  # valid
         with pytest.raises(m.InputsError, match=regex):
             func(
                 *valid_args[:7],
-                h=3,
-                i="three",
-                j="not in literal",
-                k={"not": "a list"},
-                l=["not a dict"],
-                m=["not a mapping"],
-                n=["not a tuple"],
-                o=("foo", 1, {"spam", "bar"}),  # valid
-                p=["not a set"],
-                q={"not": "a sequence"},
-                r=["foo", "bar"],  # valid
-                s="not callable",
-                t=lambda x: x,  # valid
-                u=lambda x: x,  # valid
-                v=lambda x: x,  # valid
-                w=["list not in union"],
-                x={"dict": "not in annotated union"},
-                y={"dict": "not in annotated union"},
-                z={"dict": "not in annotated union"},
-                aa=6,
-                bb="not an int",
-                cc="not a bool",
+                3,  # h
+                "three",  # i
+                "not in literal",  # j
+                {"not": "a list"},  # k
+                ["not a dict"],  # l
+                ["not a mapping"],  # m
+                ["not a tuple"],  # n
+                ("foo", 1, {"spam", "bar"}),  # valid  # o
+                ["not a set"],  # p
+                {"not": "a sequence"},  # q
+                ["foo", "bar"],  # valid  # r
+                "not callable",  # s
+                lambda x: x,  # valid  # t
+                lambda x: x,  # valid  # u
+                lambda x: x,  # valid  # v
+                ["list not in union"],  # w
+                {"dict": "not in annotated union"},  # x
+                {"dict": "not in annotated union"},  # y
+                {"dict": "not in annotated union"},  # z
+                6,  # aa
+                "not an int",  # bb
+                "not a bool",  # cc
+                4,  # valid  # dd
+                None,  # valid  # ee
+                *extra_args,
                 kwonly_req_a="not a bool",
                 kwonly_req_b=None,  # valid
+                *extra_kwargs,
             )
 
 
@@ -1684,3 +1823,108 @@ def test_parse_none():
     # verify that parse_none results in None being passed through (b and b2)
     # verify that None provides for setting default values dynamically (c)
     assert f(3, None) == {"a": 3, "b": None, "b2": None, "c": 3}
+
+
+def test_unpacked():
+    """Tests for functions that provide for packing extra arguments.
+
+    Tests verify typing, coercion and parsing of packing arguments, e.g.
+    *args and **kwargs.
+
+    Note: that defining and passing kwargs and args has no effect on other
+    functionality is covered by use of the f_with_packed fixture within the
+    `test_general_valid` and `test_invalid_types` tests.
+    """
+
+    @m.parse
+    def f_untyped(
+        a: str,
+        b: int = 3,
+        *args,
+        kw_a: str,
+        kw_b: bool = False,
+        **kwargs,
+    ):
+        return a, b, args, kw_a, kw_b, kwargs
+
+    pos_args = ["a", 1]
+    args_extra = ("pass", ["what", "ever"], 4.4)
+    kwargs = {"kw_a": "kw_a"}
+    kwargs_extra = {"kw_c": "extra kw_c", "kw_d": "extra kw_d"}
+    expected = tuple(
+        pos_args + [args_extra] + list(kwargs.values()) + [False, kwargs_extra]
+    )
+    assert f_untyped(*pos_args, *args_extra, **kwargs, **kwargs_extra) == expected
+
+    @m.parse
+    def f_typed(
+        a: str,
+        b: int = 3,
+        *args: Union[str, int, float],
+        kw_a: str,
+        kw_b: bool = False,
+        **kwargs: dict[str, bool],
+    ):
+        return a, b, args, kw_a, kw_b, kwargs
+
+    # verify valid inputs
+    args_extra = ("3.4", 3, 3.2)
+    kwargs_extra = {
+        "kw_extra0": {
+            "0kw_extra_1": True,
+            "0kw_extra_2": False,
+            "0kw_extra_3": True,
+        },
+        "kw_extra1": {
+            "1kw_extra_1": False,
+            "1kw_extra_2": True,
+            "1kw_extra_3": False,
+        },
+    }
+    expected = tuple(
+        pos_args + [args_extra] + list(kwargs.values()) + [False, kwargs_extra]
+    )
+    assert f_typed(*pos_args, *args_extra, **kwargs, **kwargs_extra) == expected
+
+    # verify raises with invalid inputs
+    args_extra_invalid = ("3.4", [3], 3.2)
+    kwargs_extra_invalid = {
+        "kw_extra0": {
+            "0kw_extra_1": True,
+            "0kw_extra_2": False,
+            "0kw_extra_3": 1,
+        },
+        "kw_extra1": "not a dict",
+    }
+    match = re.escape(
+        "The following inputs to 'f_typed' do not conform with the corresponding type annotation:\n\n_args1\n\tTakes input that conforms with <(<class 'str'>, <class 'int'>, <class 'float'>)> although received '[3]' of type <class 'list'>.\n\nkw_extra0\n\tTakes type <class 'dict'> with values that conform to the second argument of <dict[str, bool]>, although the received dictionary contains value '1' of type <class 'int'>.\n\nkw_extra1\n\tTakes type <class 'dict'> although received 'not a dict' of type <class 'str'>."
+    )
+    with pytest.raises(m.InputsError, match=match):
+        f_typed(*pos_args, *args_extra_invalid, **kwargs, **kwargs_extra_invalid)
+
+    @m.parse
+    def f_annotated(
+        a: str,
+        b: int = 3,
+        *args: Annotated[
+            Union[str, int, float],
+            m.Coerce(int),
+            m.Parser(lambda name, obj, params: obj + params["b"]),
+        ],
+        kw_a: str,
+        kw_b: bool = False,
+        **kwargs: Annotated[Union[str, int, float], m.Coerce(float)],
+    ):
+        return a, b, args, kw_a, kw_b, kwargs
+
+    args_extra = [3, "4", 5.4]
+    args_extra_expected = (4, 5, 6)
+    kwargs_extra = dict(kw_extra0=7, kw_extra1="7.2", kw_extra2=7.4)
+    kwargs_extra_expected = dict(kw_extra0=7.0, kw_extra1=7.2, kw_extra2=7.4)
+    expected = tuple(
+        pos_args
+        + [args_extra_expected]
+        + list(kwargs.values())
+        + [False, kwargs_extra_expected]
+    )
+    assert f_annotated(*pos_args, *args_extra, **kwargs, **kwargs_extra) == expected

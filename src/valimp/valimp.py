@@ -7,17 +7,23 @@ The `parse` decorator provides for:
   - coercing inputs to a specific type.
   - user-defined parsing and validation.
 
-`parse` does NOT currently support:
-  - variable length arguments (i.e. *args in the function signature).
-  - variable length keyword arguments (i.e. **kwargs in the function
-    signature).
-  - precluding positional-only arguments being passed as keyword arguments.
+The `parse_cls`decorator provides the same functionality for inputs to
+dataclasses.
+
+Valimp does NOT currently support:
+  - Positional-only arguments. Any '/' in the signature (to define
+  positional-only arguments) will be ignored. Consequently valimp DOES
+  allow intended positional-only arguments to be passed as keyword
+  arguments.
 
 See the tutorial for a walk-through of all functionality:
 https://github.com/maread99/valimp/blob/master/docs/tutorials/tutorial.ipynb
 
-A version of the following example is included to the README with
-explanatory comments and inputs:
+Versions of the following examples are included to the README with
+explanatory comments and inputs.
+
+Example usage of `@parse` with a public function:
+
     from valimp import parse, Parser, Coerce
     from typing import Annotated, Union, Optional, Any
 
@@ -39,14 +45,45 @@ explanatory comments and inputs:
             Coerce(str),
             Parser(lambda name, obj, _: obj + f"_{name}")
         ],
-        *,
+        *args: Annotated[
+            Union[int, float, str],  # int | float | str
+            Coerce(int)
+        ],
         g: Optional[str],  # str | None
         h: Annotated[
             Optional[float],  # float | None
             Parser(lambda _, obj, params: params["b"] if obj is None else obj)
         ] = None,
+        **kwargs: bool,
     ) -> dict[str, Any]:
-        return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h}
+        return {
+            "a":a,
+            "b":b,
+            "c":c,
+            "d":d,
+            "e":e,
+            "f":f,
+            "args":args,
+            "g":g,
+            "h":h,
+            "kwargs":kwargs,
+        }
+
+Example usage of `@parse_cls` with a dataclass:
+
+    from valimp import parse_cls
+    import dataclasses
+
+    @parse_cls
+    @dataclasses.dataclass
+    class ADataclass:
+
+        a: str
+        b: Annotated[
+            Union[str, int],
+            Coerce(str),
+            Parser(lambda name, obj, params: obj + f" {name} {params['a']}")
+        ]
 
 Type validation
 ---------------
@@ -642,7 +679,8 @@ def validate_against_signature(
     kwargs: dict[str, Any],
     req_args: list[str],
     req_kwargs: list[str],
-    all_arg_names: list[str],
+    excess_args: tuple[Any, ...],
+    excess_kwargs: list[str],
 ) -> list[TypeError]:
     """Validate inputs against arguments expected by signature.
 
@@ -666,9 +704,13 @@ def validate_against_signature(
     req_kwargs
         List of names of required keyword-only arguments.
 
-    all_arg_names
-        List of all possible argument names (positional and
-        keyword only).
+    excess_args
+        Any objects received positionally that are not accommodated the
+        signature.
+
+    excess_kwargs
+        Names of any received kwargs that are not accommodated by the
+        signature.
 
     Returns
     -------
@@ -689,27 +731,24 @@ def validate_against_signature(
         )
 
     # excess arguments
-    extra_args = [a for a in args_as_kwargs if a.startswith("_xtra")]
-    if extra_args:
-        obj_0 = args_as_kwargs[extra_args[0]]
+    if excess_args:
+        obj_0 = excess_args[0]
         msg_end = f"\t'{obj_0}' of type {type(obj_0)}."
-        for a in extra_args[1:]:
-            obj = args_as_kwargs[a]
+        for obj in excess_args[1:]:
             msg_end += f"\n\t'{obj}' of type {type(obj)}."
         errors.append(
             TypeError(
-                f"Received {len(extra_args)} excess positional"
-                f" argument{'s' if len(extra_args) > 1 else ''} as:\n{msg_end}"
+                f"Received {len(excess_args)} excess positional"
+                f" argument{'s' if len(excess_args) > 1 else ''} as:\n{msg_end}"
             )
         )
 
-    extra_kwargs = [a for a in kwargs if a not in all_arg_names]
-    if extra_kwargs:
+    if excess_kwargs:
         errors.append(
             TypeError(
                 f"Got unexpected keyword"
-                f" argument{'s' if len(extra_kwargs) > 1 else ''}"
-                f": {args_name_inset(extra_kwargs)}."
+                f" argument{'s' if len(excess_kwargs) > 1 else ''}"
+                f": {args_name_inset(excess_kwargs)}."
             )
         )
 
@@ -886,22 +925,55 @@ def parse(f) -> collections.abc.Callable:
     all_param_names = spec.args + (
         spec.kwonlyargs if spec.kwonlyargs is not None else []
     )
+    name_extra_args = "_" + spec.varargs if spec.varargs is not None else "_a5f12_3adz"
 
     @functools.wraps(f)
     def wrapped_f(*args, **kwargs) -> Any:
+        hints_ = hints.copy()
         args_as_kwargs = {name: obj for obj, name in zip(args, spec.args)}
-        if len(args) > len(spec.args):
-            for i, obj in enumerate(args[len(spec.args) :]):
-                args_as_kwargs["_xtra" + str(i)] = obj
+
+        # handle extra args
+        extra_args = args[len(spec.args) :]
+        if spec.varargs is None:  # no provision for extra args, e.g. no *args in sig
+            excess_args = extra_args
+            extra_args = tuple()
+        else:  # extra args provided for, e.g. with *args
+            excess_args = tuple()
+            # add a hint for each extra arg
+            hint = hints.get(spec.varargs, False)
+            for i, obj in enumerate(extra_args):
+                key = name_extra_args + str(i)
+                args_as_kwargs[key] = obj
+                if hint:
+                    hints_[key] = hint
+            if hint:
+                del hints_[spec.varargs]
+
+        extra_kwargs = [a for a in kwargs if a not in all_param_names]
+        if spec.varkw is None:  # no provision for extra kwargs, e.g. no **kwargs in sig
+            excess_kwargs = extra_kwargs
+            for name in excess_kwargs:
+                del kwargs[name]
+            extra_kwargs = []
+        else:  # extra kwargs provided for, e.g. with **kwargs
+            excess_kwargs = []
+            # add a hint for each extra kwarg
+            if hint := hints.get(spec.varkw, False):
+                for name in extra_kwargs:
+                    hints_[name] = hint
+                del hints_[spec.varkw]
 
         sig_errors = validate_against_signature(
-            args_as_kwargs, kwargs, req_args, req_kwargs, all_param_names
+            args_as_kwargs, kwargs, req_args, req_kwargs, excess_args, excess_kwargs
         )
 
-        params_as_kwargs = {  # remove arguments not in signature
-            k: v for k, v in (args_as_kwargs | kwargs).items() if k in all_param_names
+        params_as_kwargs = {  # remove arguments not provided for in signature
+            k: v
+            for k, v in (args_as_kwargs | kwargs).items()
+            if (k in all_param_names + extra_kwargs) or k.startswith(name_extra_args)
         }
-        ann_errors = validate_against_hints(params_as_kwargs, hints)
+
+        ann_errors = validate_against_hints(params_as_kwargs, hints_)
 
         if sig_errors or ann_errors:
             raise InputsError(f.__name__, sig_errors, ann_errors)
@@ -915,12 +987,16 @@ def parse(f) -> collections.abc.Callable:
             args_as_kwargs | not_received_args | kwargs | not_received_kwargs
         )
 
-        new_as_kwargs = {}
+        new_extra_args = []
+        new_kwargs = {}
         for name, obj in all_as_kwargs.items():
-            if name not in hints:
-                new_as_kwargs[name] = obj
+            if name not in hints_:
+                if name.startswith(name_extra_args):
+                    new_extra_args.append(obj)
+                else:
+                    new_kwargs[name] = obj
                 continue
-            hint = hints[name]
+            hint = hints_[name]
             if is_annotated(hint):
                 meta = hint.__metadata__
                 for data in meta:
@@ -931,11 +1007,19 @@ def parse(f) -> collections.abc.Callable:
                     if isinstance(data, Parser):
                         if obj is None and not data.parse_none:
                             continue
-                        obj = data.function(name, obj, new_as_kwargs.copy())
+                        obj = data.function(name, obj, new_kwargs.copy())
 
-            new_as_kwargs[name] = obj
+            if name.startswith(name_extra_args):
+                new_extra_args.append(obj)
+            else:
+                new_kwargs[name] = obj
 
-        return f(**new_as_kwargs)
+        new_args = []
+        for arg_name in spec.args:
+            new_args.append(new_kwargs[arg_name])
+            del new_kwargs[arg_name]
+
+        return f(*new_args, *new_extra_args, **new_kwargs)
 
     return wrapped_f
 

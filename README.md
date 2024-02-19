@@ -37,7 +37,11 @@ def public_function(
         Coerce(str),
         Parser(lambda name, obj, _: obj + f"_{name}")
     ],
-    *,
+    # support for packing extra arguments if required, can be optionally typed...
+    *args: Annotated[
+        Union[int, float, str],  # int | float | str
+        Coerce(int)
+    ],
     # support for optional types
     g: Optional[str],  # str | None
     # define default values dynamically with reference to earlier inputs
@@ -45,17 +49,21 @@ def public_function(
         Optional[float],  # float | None
         Parser(lambda _, obj, params: params["b"] if obj is None else obj)
     ] = None,
+    # support for packing excess kwargs if required, can be optionally typed...
+    # **kwargs: Union[int, float]
 ) -> dict[str, Any]:
-    return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h}
+    return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "args",args, "g":g, "h":h}
 
 public_function(
     # NB parameters 'a' through 'f' could be passed positionally
-    a="zero",
-    b=1.0,
-    c={"two": 2},
-    d=3.3, # will be coerced from float to int, i.e. to 3
-    e="four",  # will be parsed to "four_e_zero"
-    f=5,  # will be coerced to str and then parsed to "5_f"
+    "zero",  # a
+    1.0,  # b
+    {"two": 2},  # c
+    3.3,  # d, will be coerced from float to int, i.e. to 3
+    "four",  # e, will be parsed to "four_e_zero"
+    5,  # f, will be coerced to str and then parsed to "5_f"
+    "10",  # extra arg, will be coerced to int and packed
+    20,  # extra arg, will be packed
     g="keyword_arg_g",
     # h, not passed, will be assigned dynamically as parameter b (i.e. 1.0)
 )
@@ -68,6 +76,7 @@ returns:
  'd': 3,
  'e': 'four_e_zero',
  'f': '5_f',
+ 'args': (10, 20),
  'g': 'keyword_arg_g',
  'h': 1.0}
  ```
@@ -183,10 +192,12 @@ In short, if you only want to validate the type of function inputs then Pydantic
 
 ## Limitations and Development
 
-`valimp` does not currently support:
-* variable length arguments (i.e. *args in the function signature).
-* variable length keyword arguments (i.e. **kwargs in the function signature).
-* precluding positional-only arguments being passed as keyword arguments.
+`valimp` does NOT currently support:
+  - Positional-only arguments. Any '/' in the signature (to define
+  positional-only arguments) will be ignored. Consequently valimp DOES
+  allow intended positional-only arguments to be passed as keyword
+  arguments.
+  - Validation of subscripted types in `collections.abc.Callable` (although Valimp will verify that the passed value is callable).
 
 `valimp` currently supports:
 * use of the following type annotations:
@@ -206,8 +217,9 @@ In short, if you only want to validate the type of function inputs then Pydantic
     * `set`
     * `collections.abc.Sequence`
     * `collections.abc.Mapping`
+* packing and optionally coercing, parsing and validating packed objects, i.e. objects received to, for example, *args and **kwargs.
 
-That's it for now, although the library has been built with development in mind and PRs are very much welcome!
+The library has been built with development in mind and PRs are very much welcome!
 
 ## License
 
