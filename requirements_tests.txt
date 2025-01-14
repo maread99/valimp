@@ -4,17 +4,17 @@
 #
 #    pip-compile --extra=tests --output-file=requirements_tests.txt pyproject.toml
 #
-black==24.2.0
+black==24.10.0
     # via valimp (pyproject.toml)
-click==8.1.7
+click==8.1.8
     # via black
 colorama==0.4.6
     # via
     #   click
     #   pytest
-exceptiongroup==1.2.0
+exceptiongroup==1.2.2
     # via pytest
-flake8==7.0.0
+flake8==7.1.1
     # via
     #   flake8-docstrings
     #   valimp (pyproject.toml)
@@ -26,29 +26,29 @@ mccabe==0.7.0
     # via flake8
 mypy-extensions==1.0.0
     # via black
-packaging==23.2
+packaging==24.2
     # via
     #   black
     #   pytest
 pathspec==0.12.1
     # via black
-platformdirs==4.2.0
+platformdirs==4.3.6
     # via black
-pluggy==1.4.0
+pluggy==1.5.0
     # via pytest
-pycodestyle==2.11.1
+pycodestyle==2.12.1
     # via flake8
 pydocstyle==6.3.0
     # via flake8-docstrings
 pyflakes==3.2.0
     # via flake8
-pytest==8.0.1
+pytest==8.3.4
     # via valimp (pyproject.toml)
 snowballstemmer==2.2.0
     # via pydocstyle
-tomli==2.0.1
+tomli==2.2.1
     # via
     #   black
     #   pytest
-typing-extensions==4.9.0
+typing-extensions==4.12.2
     # via black
