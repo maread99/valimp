@@ -6,58 +6,46 @@ on:
     types: [released]
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Install Python
+        run: uv python install
+      - name: Build
+        run: uv build
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x'
+      - name: Publish to Test PyPI
+        run: uv publish --index testpypi
+      - name: Check test install and import
+        run: |
+          sleep 5  # Wait for Test Pypi to publish
+          uv run \
+            --with valimp \
+            --refresh-package valimp \
+            --index https://test.pypi.org/simple \
+            --no-project \
+            --isolated \
+            -- \
+            python -c 'import valimp; print(f"{valimp.__version__=}")'
 
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build
-
-    - name: Build package
-      run: python -m build
-
-    - name: Publish to Test PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_TEST_API_TOKEN }}
-        repository-url: https://test.pypi.org/legacy/
-
-    - name: Install from testpypi and import
-      run: |
-        sleep 5
-        while [ "${{ github.ref_name }}" != $(pip index versions -i https://test.pypi.org/simple --pre valimp | cut -d'(' -f2 | cut -d')' -f1 | sed 1q) ];\
-          do echo "waiting for package to appear in test index, sleeping 5s"; sleep 5s; echo "woken up"; done
-        pip install --index-url https://test.pypi.org/simple valimp==${{ github.ref_name }} --no-deps
-        pip install -r requirements.txt
-        python -c 'import valimp;print(valimp.__version__)'
-
-    - name: Clean pip
-      run: |
-        pip uninstall -y valimp
-        pip cache purge
-
-    - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }}
-
-    - name: Install and import
-      run: |
-        sleep 5
-        while [ "${{ github.ref_name }}" != $(pip index versions -i https://pypi.org/simple --pre valimp | cut -d'(' -f2 | cut -d')' -f1 | sed 1q) ];\
-          do echo "waiting for package to appear in index, sleeping 5s"; sleep 5s; echo "woken up"; done
-        pip install --index-url https://pypi.org/simple valimp==${{ github.ref_name }}
-        python -c 'import valimp;print(valimp.__version__)'
+      - name: Publish to PyPI
+        run: uv publish
+      - name: Check install and import
+        run: |
+          sleep 5  # Wait for Pypi to publish
+          uv run \
+          --with valimp \
+          --refresh-package valimp \
+          --no-project \
+          --isolated \
+          -- \
+          python -c 'import valimp;print(f"{valimp.__version__=}")'
