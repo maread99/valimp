@@ -121,6 +121,7 @@ The following type annotations are supported:
         f(param: tuple)
     If the type(s) of the tuple items is included then all tuple items will
     be validated against the type(s).
+
     Examples:
         To validate that all tuple items are of type int:
             f(param: tuple[int, ...])
@@ -311,7 +312,7 @@ Rather, do any of these:
     param: typing.Annotated[
         str | None, Parser(parser_func)
     ] = None  # from python 3.10
-"""
+"""  # noqa: D214, D406, D407
 
 from __future__ import annotations
 
@@ -378,7 +379,7 @@ class Parser:
     def __init__(
         self,
         func: collections.abc.Callable[[str, Any, dict[str, Any]], Any],
-        parse_none: bool = True,
+        parse_none: bool = True,  # noqa: FBT001, FBT002
     ):
         self.function = func
         self.parse_none = parse_none
@@ -390,11 +391,11 @@ NO_ITEM_VALIDATION = "dlkj3ow61"
 STRICT_LITERAL = "dlkj3ow62"
 
 
-def validates_against_hint(
+def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
     obj: Any,
     hint: type[Any] | typing._Final,
     annotated: typing._AnnotatedAlias | None,
-    rtrn_error: bool = True,
+    rtrn_error: bool = True,  # noqa: FBT001, FBT002
 ) -> tuple[bool, ValueError | TypeError | None]:
     """Query if object conforms with type hint.
 
@@ -437,7 +438,9 @@ def validates_against_hint(
     ):
         hint_args = typing.get_args(hint)
         for hint_ in hint_args:
-            validated, _ = validates_against_hint(obj, hint_, annotated, False)
+            validated, _ = validates_against_hint(
+                obj, hint_, annotated, rtrn_error=False
+            )
             if validated:
                 return VALIDATED
         if not rtrn_error:
@@ -469,7 +472,7 @@ def validates_against_hint(
                 return VALIDATED
         else:
             try:
-                _ = next((lit for lit in hint_args if id(obj) == id(lit)))
+                _ = next(lit for lit in hint_args if id(obj) == id(lit))
             except StopIteration:
                 pass
             else:
@@ -493,14 +496,13 @@ def validates_against_hint(
         # validation of any subscripted types is not currently supported
         return VALIDATED
 
-    if origin is tuple and hint_args[-1] is not Ellipsis:
-        if len(obj) != len(hint_args):
-            if not rtrn_error:
-                return FAILED_SIMPLE
-            return False, ValueError(
-                f"Takes type {origin} of length {len(hint_args)} although received"
-                f" '{obj}' of length {len(obj)}."
-            )
+    if origin is tuple and hint_args[-1] is not Ellipsis and len(obj) != len(hint_args):
+        if not rtrn_error:
+            return FAILED_SIMPLE
+        return False, ValueError(
+            f"Takes type {origin} of length {len(hint_args)} although received"
+            f" '{obj}' of length {len(obj)}."
+        )
 
     # Validation of container ITEMS
 
@@ -514,7 +516,7 @@ def validates_against_hint(
     ):
         sub_hint = hint_args[0]
         for e in obj:
-            validated, _ = validates_against_hint(e, sub_hint, None, False)
+            validated, _ = validates_against_hint(e, sub_hint, None, rtrn_error=False)
             if not validated:
                 if not rtrn_error:
                     return FAILED_SIMPLE
@@ -527,7 +529,7 @@ def validates_against_hint(
 
     if origin is tuple:
         for i, (e, sub_hint) in enumerate(zip(obj, hint_args)):
-            validated, _ = validates_against_hint(e, sub_hint, None, False)
+            validated, _ = validates_against_hint(e, sub_hint, None, rtrn_error=False)
             if not validated:
                 if not rtrn_error:
                     return FAILED_SIMPLE
@@ -540,8 +542,8 @@ def validates_against_hint(
     if origin in (dict, collections.abc.Mapping):
         key_hint = hint_args[0]
         key_error = False
-        for i_k, k in enumerate(obj.keys()):
-            validated, _ = validates_against_hint(k, key_hint, None, False)
+        for i_k, k in enumerate(obj.keys()):  # noqa: B007
+            validated, _ = validates_against_hint(k, key_hint, None, rtrn_error=False)
             if not validated:
                 if not rtrn_error:
                     return FAILED_SIMPLE
@@ -550,8 +552,8 @@ def validates_against_hint(
 
         val_hint = hint_args[1]
         val_error = False
-        for i_v, v in enumerate(obj.values()):
-            validated, _ = validates_against_hint(v, val_hint, None, False)
+        for i_v, v in enumerate(obj.values()):  # noqa: B007
+            validated, _ = validates_against_hint(v, val_hint, None, rtrn_error=False)
             if not validated:
                 if not rtrn_error:
                     return FAILED_SIMPLE
@@ -581,11 +583,12 @@ def validates_against_hint(
 
         return VALIDATED
 
-    raise TypeError(
+    msg_err = (
         f"The following type annotation is not currently supported by `valimp`:"
         f"\n{hint}.\n\n The object receieved against this type annotation was'{obj}'"
         f" of type {type(obj)}."
     )
+    raise TypeError(msg_err)
 
 
 def validate_against_hints(
@@ -623,7 +626,8 @@ def validate_against_hints(
 
         validated, error = validates_against_hint(obj, hint, annotated)
         if not validated:
-            assert error is not None
+            if error is None:
+                raise AssertionError
             errors[name] = error
     return errors
 
@@ -654,7 +658,7 @@ def args_name_inset(arg_names: list[str]) -> str:
     return inset
 
 
-def get_missing_arg_error(missing: list[str], positional: bool = True) -> TypeError:
+def get_missing_arg_error(missing: list[str], *, positional: bool = True) -> TypeError:
     """Get a TypeError for a missing positional or keyword-only argument.
 
     Parameters
@@ -756,11 +760,11 @@ def validate_against_signature(
     all_as_kwargs = args_as_kwargs | kwargs
     missing = [a for a in req_args if a not in all_as_kwargs]
     if missing:
-        errors.append(get_missing_arg_error(missing, True))
+        errors.append(get_missing_arg_error(missing, positional=True))
 
     missing_kw = [kwarg for kwarg in req_kwargs if kwarg not in all_as_kwargs]
     if missing_kw:
-        errors.append(get_missing_arg_error(missing_kw, False))
+        errors.append(get_missing_arg_error(missing_kw, positional=False))
 
     return errors
 
@@ -781,8 +785,7 @@ class InputsError(Exception):
         msg = ""
         if sig_errors:
             msg += (
-                f"Inputs to '{func_name}' do not conform with the"
-                " function signature:"
+                f"Inputs to '{func_name}' do not conform with the function signature:"
             )
             for e_sig in sig_errors:
                 msg += f"\n\n{e_sig.args[0]}"
@@ -803,7 +806,7 @@ class InputsError(Exception):
 
 
 # NOTE: can be removed from when min supported python version advances to 3.11
-def fix_hints_for_none_default(
+def fix_hints_for_none_default(  # noqa: C901
     hints: dict[str, type[Any] | typing._Final],
     spec: inspect.FullArgSpec,
 ) -> dict[str, type[Any] | typing._Final]:
@@ -825,7 +828,7 @@ def fix_hints_for_none_default(
         As received, updated by removing any outer typing.Optional wrapper
         around a typing.Annotation.
     """
-    if sys.version_info.minor >= 11:
+    if sys.version_info >= (3, 11):
         return hints
 
     def update_hints(arg: str, dflt: Any):
@@ -834,7 +837,7 @@ def fix_hints_for_none_default(
         if dflt is not None:
             return
         hint = hints[arg]
-        if not typing.get_origin(hint) is typing.Union:
+        if typing.get_origin(hint) is not typing.Union:
             return
         first_hint_arg = typing.get_args(hint)[0]
         if is_annotated(first_hint_arg):
@@ -873,12 +876,12 @@ def get_unreceived_args(
     """
     if spec.defaults is None:
         return {}
-    unreceived = {}
     not_req_args = spec.args[-len(spec.defaults) :]
-    for arg, dflt in zip(not_req_args, spec.defaults):
-        if arg not in names_received:
-            unreceived[arg] = dflt
-    return unreceived
+    return {
+        arg: dflt
+        for arg, dflt in zip(not_req_args, spec.defaults)
+        if arg not in names_received
+    }
 
 
 def get_unreceived_kwargs(
@@ -902,18 +905,14 @@ def get_unreceived_kwargs(
     """
     if spec.kwonlydefaults is None:
         return {}
-    unreceived = {}
-    for k, v in spec.kwonlydefaults.items():
-        if k not in names_received:
-            unreceived[k] = v
-    return unreceived
+    return {k: v for k, v in spec.kwonlydefaults.items() if k not in names_received}
 
 
-def parse(f) -> collections.abc.Callable:
+def parse(f) -> collections.abc.Callable:  # noqa: C901
     """Decorator to validate and parse user inputs.
 
     See valimp module doc (valimp.__doc__).
-    """
+    """  # noqa: D401
     spec = inspect.getfullargspec(f)
     hints = typing.get_type_hints(f, include_extras=True)
     hints = fix_hints_for_none_default(hints, spec)
@@ -928,7 +927,7 @@ def parse(f) -> collections.abc.Callable:
     name_extra_args = "_" + spec.varargs if spec.varargs is not None else "_a5f12_3adz"
 
     @functools.wraps(f)
-    def wrapped_f(*args, **kwargs) -> Any:
+    def wrapped_f(*args, **kwargs) -> Any:  # noqa: C901, PLR0912
         hints_ = hints.copy()
         args_as_kwargs = {name: obj for obj, name in zip(args, spec.args)}
 
@@ -936,9 +935,9 @@ def parse(f) -> collections.abc.Callable:
         extra_args = args[len(spec.args) :]
         if spec.varargs is None:  # no provision for extra args, e.g. no *args in sig
             excess_args = extra_args
-            extra_args = tuple()
+            extra_args = ()
         else:  # extra args provided for, e.g. with *args
-            excess_args = tuple()
+            excess_args = ()
             # add a hint for each extra arg
             hint = hints.get(spec.varargs, False)
             for i, obj in enumerate(extra_args):
@@ -1003,11 +1002,11 @@ def parse(f) -> collections.abc.Callable:
                     # let order of coercion and parsing depend on their
                     # order within metadata
                     if obj is not None and isinstance(data, Coerce):
-                        obj = data.coerce_to(obj)
+                        obj = data.coerce_to(obj)  # noqa: PLW2901
                     if isinstance(data, Parser):
                         if obj is None and not data.parse_none:
                             continue
-                        obj = data.function(name, obj, new_kwargs.copy())
+                        obj = data.function(name, obj, new_kwargs.copy())  # noqa: PLW2901
 
             if name.startswith(name_extra_args):
                 new_extra_args.append(obj)

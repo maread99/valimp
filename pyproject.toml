@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=43.0.0", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=77.0.0", "wheel", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,7 +10,7 @@ authors = [
   {name = "Marcus Read"},
 ]
 readme = "README.md"
-license = {text = "MIT License"}
+license = "MIT"
 keywords = [
     "validation",
     "parsing",
@@ -20,12 +20,11 @@ keywords = [
     "input",
     "function"
 ]
-requires-python = "~=3.9"
+requires-python = ">=3.9, <4"
 
 classifiers = [
 	"Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
 	"Natural Language :: English",
     "Operating System :: OS Independent",
 	"Programming Language :: Python",
@@ -43,22 +42,16 @@ classifiers = [
 
 dynamic = ["version"]
 
-[project.optional-dependencies]
-tests = [
-    "black",
-    "flake8",
-    "flake8-docstrings",
+[dependency-groups]
+test = [
     "pytest",
 ]
+ 
 dev = [
-    "black",
-    "flake8",
-    "flake8-docstrings",
-    "pytest",
+    {include-group = "test"},
     "mypy",
-    "pip-tools",
     "pre-commit",
-    "pylint",
+    # "ruff",  # use local standalone install or ruff extension for editor.
 ]
 
 [project.urls]
@@ -69,7 +62,3 @@ documentation = "https://github.com/maread99/valimp"
 
 [tool.setuptools_scm]
 write_to = "src/valimp/_version.py"
-
-[tool.black]
-line-length = 88
-target-version = ['py39', 'py310', 'py311', 'py312', 'py313']

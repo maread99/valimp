@@ -1,41 +1,29 @@
 """Tests for market_prices.input module."""
 
-from collections import abc
 import dataclasses
 import inspect
 import re
 import sys
 import typing
+from collections import abc
 from typing import (
-    Union,
-    Literal,
     Annotated,
-    Optional,
-    get_type_hints,
     Any,
+    Literal,
+    Optional,
+    Union,
+    get_type_hints,
 )
 
 import pytest
 
 import valimp as m
 
-# pylint: disable=line-too-long
-# pylint: disable=missing-function-docstring, missing-type-doc
-# pylint: disable=missing-param-doc, missing-any-param-doc, redefined-outer-name
-# pylint: disable=too-many-public-methods, too-many-arguments, too-many-locals
-# pylint: disable=too-many-statements
-# pylint: disable=protected-access, no-self-use, unused-argument, invalid-name
-# pylint: disable=unused-variable
-#   missing-fuction-docstring: doc not required for all tests
-#   protected-access: not required for tests
-#   not compatible with use of fixtures to parameterize tests:
-#       too-many-arguments, too-many-public-methods
-#   not compatible with pytest fixtures:
-#       redefined-outer-name, no-self-use, missing-any-param-doc, missing-type-doc
-#   unused-argument: not compatible with pytest fixtures, caught by pylance anyway.
-#   invalid-name: names in tests not expected to strictly conform with snake_case.
-
-# Any flake8 disabled violations handled via per-file-ignores on .flake8
+# ruff: noqa: FA100  # furture-rewrittable-type-annotation.  Can't use future as require runtime interpreation of annotations.
+# ruff: noqa: E741  # ambiguous-variable-name.  Use 'l' here as a parameter.
+# ruff: noqa: PYI051  # reduntant-literal-union.  Need to test for possible usage regardless.
+# ruff: noqa: ARG001  # unused-function-argument.  Just the nature, want to test errors raised during parsing before args received, not interested in the args as received.
+# ruff: noqa: E501  # line-too-long
 
 
 def test_decorator_wrapped():
@@ -64,13 +52,15 @@ def f() -> abc.Iterator[abc.Callable]:
 
     @m.parse
     def func(
-        a: Annotated[int, m.Parser(lambda n, obj, _: obj + 4)],
+        a: Annotated[int, m.Parser(lambda _n, obj, _: obj + 4)],
         b: Annotated[Union[str, int, float], m.Coerce(int)],
         c: Annotated[
-            Union[str, int], m.Coerce(str), m.Parser(lambda n, obj, p: obj + "_suffix")
+            Union[str, int],
+            m.Coerce(str),
+            m.Parser(lambda _n, obj, _p: obj + "_suffix"),
         ],
         d: Annotated[
-            Union[float, int], m.Parser(lambda n, obj, p: obj + 10), m.Coerce(str)
+            Union[float, int], m.Parser(lambda _n, obj, _p: obj + 10), m.Coerce(str)
         ],
         e: str,
         f: Annotated[str, m.Parser(lambda name, obj, _: name + "_" + obj)],
@@ -100,10 +90,10 @@ def f() -> abc.Iterator[abc.Callable]:
         w: Union[int, str, None, Literal["spam", "foo"]],
         x: Annotated[Union[str, int, float], "spam meta", "foo meta"],
         y: Annotated[
-            Optional[Union[str, int, float]], "foo meta", m.Parser(lambda n, o, p: o)
+            Optional[Union[str, int, float]], "foo meta", m.Parser(lambda _n, o, _p: o)
         ],
         z: Annotated[
-            Optional[Union[str, int, float]], "spam meta", m.Parser(lambda n, o, p: o)
+            Optional[Union[str, int, float]], "spam meta", m.Parser(lambda _n, o, _p: o)
         ] = None,  # this annotation requires fixing by `fix_hints_for_none_default``
         aa: Annotated[Literal[3, 4, 5], "spam meta", "foo meta"] = 4,
         bb: Optional[int] = None,
@@ -170,15 +160,15 @@ def inst() -> abc.Iterator[object]:
         @m.parse
         def func(
             self,
-            a: Annotated[int, m.Parser(lambda n, obj, _: obj + 4)],
+            a: Annotated[int, m.Parser(lambda _n, obj, _: obj + 4)],
             b: Annotated[Union[str, int, float], m.Coerce(int)],
             c: Annotated[
                 Union[str, int],
                 m.Coerce(str),
-                m.Parser(lambda n, obj, p: obj + "_suffix"),
+                m.Parser(lambda _n, obj, _p: obj + "_suffix"),
             ],
             d: Annotated[
-                Union[float, int], m.Parser(lambda n, obj, p: obj + 10), m.Coerce(str)
+                Union[float, int], m.Parser(lambda _n, obj, _p: obj + 10), m.Coerce(str)
             ],
             e: str,
             f: Annotated[str, m.Parser(lambda name, obj, _: name + "_" + obj)],
@@ -215,12 +205,12 @@ def inst() -> abc.Iterator[object]:
             y: Annotated[
                 Optional[Union[str, int, float]],
                 "foo meta",
-                m.Parser(lambda n, o, p: o),
+                m.Parser(lambda _n, o, _p: o),
             ],
             z: Annotated[
                 Optional[Union[str, int, float]],
                 "spam meta",
-                m.Parser(lambda n, o, p: o),
+                m.Parser(lambda _n, o, _p: o),
             ] = None,  # this annotation requires fixing by `fix_hints_for_none_default``
             aa: Annotated[Literal[3, 4, 5], "spam meta", "foo meta"] = 4,
             bb: Optional[int] = None,
@@ -275,7 +265,7 @@ def inst() -> abc.Iterator[object]:
 
 
 @pytest.fixture
-def datacls() -> abc.Iterator[typing.Type]:
+def datacls() -> abc.Iterator[type]:
     """Dataclass with type annotations.
 
     Constructor's signature as 'func' fixture.
@@ -286,15 +276,15 @@ def datacls() -> abc.Iterator[typing.Type]:
     class DataCls:
         """A decorated dataclass."""
 
-        a: Annotated[int, m.Parser(lambda n, obj, _: obj + 4)]
+        a: Annotated[int, m.Parser(lambda _n, obj, _: obj + 4)]
         b: Annotated[Union[str, int, float], m.Coerce(int)]
         c: Annotated[
             Union[str, int],
             m.Coerce(str),
-            m.Parser(lambda n, obj, p: obj + "_suffix"),
+            m.Parser(lambda _n, obj, _p: obj + "_suffix"),
         ]
         d: Annotated[
-            Union[float, int], m.Parser(lambda n, obj, p: obj + 10), m.Coerce(str)
+            Union[float, int], m.Parser(lambda _n, obj, _p: obj + 10), m.Coerce(str)
         ]
         e: str
         f: Annotated[str, m.Parser(lambda name, obj, _: name + "_" + obj)]
@@ -326,12 +316,12 @@ def datacls() -> abc.Iterator[typing.Type]:
         y: Annotated[
             Optional[Union[str, int, float]],
             "foo meta",
-            m.Parser(lambda n, o, p: o),
+            m.Parser(lambda _n, o, _p: o),
         ]
         z: Annotated[
             Optional[Union[str, int, float]],
             "spam meta",
-            m.Parser(lambda n, o, p: o),
+            m.Parser(lambda _n, o, _p: o),
         ] = None  # this annotation requires fixing by `fix_hints_for_none_default``
         aa: Annotated[Literal[3, 4, 5], "spam meta", "foo meta"] = 4
         bb: Optional[int] = None
@@ -364,13 +354,15 @@ def f_with_packed() -> abc.Iterator[abc.Callable]:
 
     @m.parse
     def func(
-        a: Annotated[int, m.Parser(lambda n, obj, _: obj + 4)],
+        a: Annotated[int, m.Parser(lambda _n, obj, _: obj + 4)],
         b: Annotated[Union[str, int, float], m.Coerce(int)],
         c: Annotated[
-            Union[str, int], m.Coerce(str), m.Parser(lambda n, obj, p: obj + "_suffix")
+            Union[str, int],
+            m.Coerce(str),
+            m.Parser(lambda _n, obj, _p: obj + "_suffix"),
         ],
         d: Annotated[
-            Union[float, int], m.Parser(lambda n, obj, p: obj + 10), m.Coerce(str)
+            Union[float, int], m.Parser(lambda _n, obj, _p: obj + 10), m.Coerce(str)
         ],
         e: str,
         f: Annotated[str, m.Parser(lambda name, obj, _: name + "_" + obj)],
@@ -400,10 +392,10 @@ def f_with_packed() -> abc.Iterator[abc.Callable]:
         w: Union[int, str, None, Literal["spam", "foo"]],
         x: Annotated[Union[str, int, float], "spam meta", "foo meta"],
         y: Annotated[
-            Optional[Union[str, int, float]], "foo meta", m.Parser(lambda n, o, p: o)
+            Optional[Union[str, int, float]], "foo meta", m.Parser(lambda _n, o, _p: o)
         ],
         z: Annotated[
-            Optional[Union[str, int, float]], "spam meta", m.Parser(lambda n, o, p: o)
+            Optional[Union[str, int, float]], "spam meta", m.Parser(lambda _n, o, _p: o)
         ] = None,  # this annotation requires fixing by `fix_hints_for_none_default``
         aa: Annotated[Literal[3, 4, 5], "spam meta", "foo meta"] = 4,
         bb: Optional[int] = None,
@@ -905,7 +897,7 @@ def test_invalid_types(f, inst, f_with_packed, datacls, valid_args):
                 *extra_args,
                 kwonly_req_a="not a bool",
                 kwonly_req_b=None,  # valid
-                *extra_kwargs,
+                **extra_kwargs,
             )
 
 
@@ -1654,7 +1646,7 @@ def test_strict_literal():
 
 # NOTE: can be removed from when min supported python version advances to 3.11
 def test_fix_hints_for_none_default():
-    if sys.version_info.minor >= 11:
+    if sys.version_info >= (3, 11):
         pytest.skip("only applicable to py <11.")
 
     def f(
@@ -1851,16 +1843,14 @@ def test_unpacked():
     args_extra = ("pass", ["what", "ever"], 4.4)
     kwargs = {"kw_a": "kw_a"}
     kwargs_extra = {"kw_c": "extra kw_c", "kw_d": "extra kw_d"}
-    expected = tuple(
-        pos_args + [args_extra] + list(kwargs.values()) + [False, kwargs_extra]
-    )
+    expected = (*pos_args, args_extra, *list(kwargs.values()), False, kwargs_extra)
     assert f_untyped(*pos_args, *args_extra, **kwargs, **kwargs_extra) == expected
 
     @m.parse
     def f_typed(
         a: str,
         b: int = 3,
-        *args: Union[str, int, float],
+        *args: Union[str, int, float],  # noqa: PYI041
         kw_a: str,
         kw_b: bool = False,
         **kwargs: dict[str, bool],
@@ -1881,9 +1871,7 @@ def test_unpacked():
             "1kw_extra_3": False,
         },
     }
-    expected = tuple(
-        pos_args + [args_extra] + list(kwargs.values()) + [False, kwargs_extra]
-    )
+    expected = (*pos_args, args_extra, *list(kwargs.values()), False, kwargs_extra)
     assert f_typed(*pos_args, *args_extra, **kwargs, **kwargs_extra) == expected
 
     # verify raises with invalid inputs
@@ -1909,7 +1897,7 @@ def test_unpacked():
         *args: Annotated[
             Union[str, int, float],
             m.Coerce(int),
-            m.Parser(lambda name, obj, params: obj + params["b"]),
+            m.Parser(lambda _name, obj, params: obj + params["b"]),
         ],
         kw_a: str,
         kw_b: bool = False,
@@ -1921,10 +1909,11 @@ def test_unpacked():
     args_extra_expected = (4, 5, 6)
     kwargs_extra = dict(kw_extra0=7, kw_extra1="7.2", kw_extra2=7.4)
     kwargs_extra_expected = dict(kw_extra0=7.0, kw_extra1=7.2, kw_extra2=7.4)
-    expected = tuple(
-        pos_args
-        + [args_extra_expected]
-        + list(kwargs.values())
-        + [False, kwargs_extra_expected]
+    expected = (
+        *pos_args,
+        args_extra_expected,
+        *list(kwargs.values()),
+        False,
+        kwargs_extra_expected,
     )
     assert f_annotated(*pos_args, *args_extra, **kwargs, **kwargs_extra) == expected
