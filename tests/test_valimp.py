@@ -25,6 +25,21 @@ import valimp as m
 # ruff: noqa: ARG001  # unused-function-argument.  Just the nature, want to test errors raised during parsing before args received, not interested in the args as received.
 # ruff: noqa: E501  # line-too-long
 
+# In Python 3.14+ repr(typing.Union[X, Y]) changed from "typing.Union[X, Y]" to "X | Y".
+_UNION_TYPE_REPRS = {
+    "str, int, set": "str | int | set",
+    "int, float": "int | float",
+}
+
+
+def _msg_re(msg: str) -> str:
+    pattern = re.escape(msg)
+    for type_args, pipe_repr in _UNION_TYPE_REPRS.items():
+        old = re.escape(f"typing.Union[{type_args}]")
+        new = f"(?:{old}|{re.escape(pipe_repr)})"
+        pattern = pattern.replace(old, new)
+    return pattern
+
 
 def test_decorator_wrapped():
     """Verify post-decoration function retains hints and docstring."""
@@ -1213,7 +1228,7 @@ def test_invalid_inputs_seq_items():
         )
 
 
-INVALID_MSG_TUPLE_ITEMS = re.escape(
+INVALID_MSG_TUPLE_ITEMS = _msg_re(
     """The following inputs to 'f' do not conform with the corresponding type annotation:
 
 a
@@ -1563,7 +1578,7 @@ def test_invalid_inputs_mapping_items():
         )
 
 
-INVALID_MSG_NEATED_ITEMS_0 = re.escape(
+INVALID_MSG_NEATED_ITEMS_0 = _msg_re(
     """The following inputs to 'f' do not conform with the corresponding type annotation:
 
 a
@@ -1571,7 +1586,7 @@ a
 )
 
 
-INVALID_MSG_NEATED_ITEMS_1 = re.escape(
+INVALID_MSG_NEATED_ITEMS_1 = _msg_re(
     """The following inputs to 'f' do not conform with the corresponding type annotation:
 
 a
