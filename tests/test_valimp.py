@@ -178,12 +178,9 @@ def inst() -> abc.Iterator[object]:
             h: Annotated[
                 str,
                 m.Parser(
-                    lambda name, obj, params: name
-                    + "_"
-                    + obj
-                    + "_"
-                    + params["e"]
-                    + "_bar"
+                    lambda name, obj, params: (
+                        name + "_" + obj + "_" + params["e"] + "_bar"
+                    )
                 ),
             ],
             i: Annotated[int, "spam meta", "foo meta"],
