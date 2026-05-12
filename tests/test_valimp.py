@@ -1929,3 +1929,105 @@ def test_unpacked():
         kwargs_extra_expected,
     )
     assert f_annotated(*pos_args, *args_extra, **kwargs, **kwargs_extra) == expected
+
+
+def test_numeric_tower():
+    """Verify PEP 484 numeric tower behavior for `float` and `complex`.
+
+    A parameter annotated as `float` should accept an `int` value, and a
+    parameter annotated as `complex` should accept an `int` or `float`
+    value (in line with the treatment afforded by static type checkers).
+
+    See https://github.com/maread99/valimp/issues/17.
+    """
+
+    @m.parse
+    def f_float(a: float) -> float:
+        return a
+
+    # int passed where float annotated - per PEP 484 numeric tower
+    int_in = 3
+    float_in = 3.5
+    assert f_float(int_in) == int_in
+    assert isinstance(f_float(int_in), int)  # not coerced, passed through
+    assert f_float(float_in) == float_in
+
+    # invalid - str not part of the numeric tower
+    with pytest.raises(m.InputsError, match=r"Takes type <class 'float'>"):
+        f_float("3")
+
+    @m.parse
+    def f_complex(a: complex) -> complex:
+        return a
+
+    # int and float passed where complex annotated
+    complex_in = 3 + 2j
+    assert f_complex(int_in) == int_in
+    assert f_complex(float_in) == float_in
+    assert f_complex(complex_in) == complex_in
+
+    # invalid - str not part of the numeric tower
+    with pytest.raises(m.InputsError, match=r"Takes type <class 'complex'>"):
+        f_complex("3")
+
+    # verify that int -> float works for items in containers
+    @m.parse
+    def f_container(
+        a: list[float],
+        b: dict[str, float],
+        c: tuple[float, ...],
+        d: set[float],
+        e: tuple[float, float, complex],
+    ) -> tuple:
+        return a, b, c, d, e
+
+    list_in = [1, 2.0, 3]
+    dict_in = {"x": 1, "y": 2.5}
+    tuple_in = (1, 2, 3.0)
+    set_in = {1, 2.0}
+    fixed_tuple_in = (1, 2.0, 3)
+    rtrn = f_container(list_in, dict_in, tuple_in, set_in, fixed_tuple_in)
+    assert rtrn == (list_in, dict_in, tuple_in, set_in, fixed_tuple_in)
+
+    # verify int -> float works within a Union
+    @m.parse
+    def f_union(a: Union[float, str]) -> Union[float, str]:
+        return a
+
+    assert f_union(int_in) == int_in
+    assert f_union(float_in) == float_in
+    assert f_union("a") == "a"
+
+    # verify int -> float works with Optional
+    @m.parse
+    def f_optional(a: Optional[float] = None) -> Optional[float]:
+        return a
+
+    assert f_optional(int_in) == int_in
+    assert f_optional(float_in) == float_in
+    assert f_optional() is None
+    assert f_optional(None) is None
+
+    # verify int -> complex works within a Union
+    @m.parse
+    def f_complex_union(a: Union[complex, str]) -> Union[complex, str]:
+        return a
+
+    assert f_complex_union(int_in) == int_in
+    assert f_complex_union(float_in) == float_in
+    assert f_complex_union(complex_in) == complex_in
+    assert f_complex_union("a") == "a"
+
+    # verify that the numeric tower does NOT widen in the opposite direction:
+    # a float should not be accepted where an int is annotated.
+    @m.parse
+    def f_int(a: int) -> int:
+        return a
+
+    assert f_int(int_in) == int_in
+    with pytest.raises(m.InputsError, match=r"Takes type <class 'int'>"):
+        f_int(float_in)
+
+    # nor should a complex be accepted where a float is annotated.
+    with pytest.raises(m.InputsError, match=r"Takes type <class 'float'>"):
+        f_float(complex_in)
