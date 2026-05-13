@@ -97,9 +97,9 @@ Type validation
   - Inputs annoated with a typing.Literal type can be validated as either
   comparing equal (default) or being equal.
 
-  - In line with PEP 484 the numeric tower is honored, such that an input
-  of type int is acceptable where the annotation is float, and an input of
-  type int or float is acceptable where the annotation is complex.
+  - The numeric tower is honored (PEP 484), such that an input of type int
+  is acceptable where the annotation is float, and an input of type int or
+  float is acceptable where the annotation is complex.
 
 From Python 3.10 use of the | operator is supported to define annotations
 describing type unions and optional types.
@@ -460,11 +460,11 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
     if origin is None:
         if isinstance(obj, hint):
             return VALIDATED
-        # PEP 484 numeric tower: an int is acceptable where a float is
-        # annotated, and an int or float is acceptable where a complex is
-        # annotated.
+        # PEP 484 numeric tower: an int is acceptable where a float is annotated...
         if hint is float and isinstance(obj, int):
             return VALIDATED
+        # ... and an int or float is acceptable where a complex is annotated.
+        # annotated.
         if hint is complex and isinstance(obj, (int, float)):
             return VALIDATED
         if not rtrn_error:
