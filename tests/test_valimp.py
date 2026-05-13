@@ -1932,25 +1932,24 @@ def test_unpacked():
 
 
 def test_numeric_tower():
-    """Verify PEP 484 numeric tower behavior for `float` and `complex`.
+    """Verify numeric tower behavior (PEP 484) for `float` and `complex`.
 
     A parameter annotated as `float` should accept an `int` value, and a
     parameter annotated as `complex` should accept an `int` or `float`
     value (in line with the treatment afforded by static type checkers).
-
-    See https://github.com/maread99/valimp/issues/17.
     """
 
     @m.parse
     def f_float(a: float) -> float:
         return a
 
-    # int passed where float annotated - per PEP 484 numeric tower
+    # verify int passes a float annotation
     int_in = 3
     float_in = 3.5
     assert f_float(int_in) == int_in
     assert isinstance(f_float(int_in), int)  # not coerced, passed through
     assert f_float(float_in) == float_in
+    assert isinstance(f_float(float_in), float)
 
     # invalid - str not part of the numeric tower
     with pytest.raises(m.InputsError, match=r"Takes type <class 'float'>"):
@@ -1963,8 +1962,11 @@ def test_numeric_tower():
     # int and float passed where complex annotated
     complex_in = 3 + 2j
     assert f_complex(int_in) == int_in
+    assert isinstance(f_complex(int_in), int)  # not coerced, passed through
     assert f_complex(float_in) == float_in
+    assert isinstance(f_complex(float_in), float)  # not coerced, passed through
     assert f_complex(complex_in) == complex_in
+    assert isinstance(f_complex(complex_in), complex)
 
     # invalid - str not part of the numeric tower
     with pytest.raises(m.InputsError, match=r"Takes type <class 'complex'>"):
@@ -1972,12 +1974,12 @@ def test_numeric_tower():
 
     # verify that int -> float works for items in containers
     @m.parse
-    def f_container(
+    def f_containers(
         a: list[float],
         b: dict[str, float],
         c: tuple[float, ...],
         d: set[float],
-        e: tuple[float, float, complex],
+        e: tuple[float, float, complex, complex],
     ) -> tuple:
         return a, b, c, d, e
 
@@ -1985,8 +1987,8 @@ def test_numeric_tower():
     dict_in = {"x": 1, "y": 2.5}
     tuple_in = (1, 2, 3.0)
     set_in = {1, 2.0}
-    fixed_tuple_in = (1, 2.0, 3)
-    rtrn = f_container(list_in, dict_in, tuple_in, set_in, fixed_tuple_in)
+    fixed_tuple_in = (1, 2.0, 3, 1.5)
+    rtrn = f_containers(list_in, dict_in, tuple_in, set_in, fixed_tuple_in)
     assert rtrn == (list_in, dict_in, tuple_in, set_in, fixed_tuple_in)
 
     # verify int -> float works within a Union
@@ -2027,6 +2029,8 @@ def test_numeric_tower():
     assert f_int(int_in) == int_in
     with pytest.raises(m.InputsError, match=r"Takes type <class 'int'>"):
         f_int(float_in)
+    with pytest.raises(m.InputsError, match=r"Takes type <class 'int'>"):
+        f_int(complex_in)
 
     # nor should a complex be accepted where a float is annotated.
     with pytest.raises(m.InputsError, match=r"Takes type <class 'float'>"):
