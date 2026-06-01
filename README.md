@@ -163,6 +163,54 @@ output:
 {'a': "I'm a and will appear at the end of b",
  'b': "33 b I'm a and will appear at the end of b"}
 ```
+Validate that an input is a class (rather than an instance) with the `type` annotation. Subscript `type` to validate that the input is a subclass of a specific type...
+```python
+from valimp import parse
+
+class Animal:
+    pass
+
+class Dog(Animal):
+    pass
+
+@parse
+def public_function(
+    # validate that input is any class
+    a: type,
+    # validate that input is a subclass of 'Animal' (including 'Animal' itself)
+    b: type[Animal],
+    # the subscripted type can be a union
+    c: type[Union[int, str]],
+) -> tuple:
+    return a, b, c
+
+public_function(
+    dict,  # a, valid, any class
+    Dog,  # b, valid, a subclass of Animal
+    str,  # c, valid, str is in the union
+)  # returns (dict, Dog, str)
+```
+And if there are invalid inputs...
+```python
+public_function(
+    3,  # INVALID, an instance, not a class
+    int,  # INVALID, not a subclass of Animal
+    float,  # INVALID, not in the union
+)
+```
+raises:
+```
+InputsError: The following inputs to 'public_function' do not conform with the corresponding type annotation:
+
+a
+	Takes type <class 'type'> although received '3' of type <class 'int'>.
+
+b
+	Takes a subclass of <class '__main__.Animal'> although received '<class 'int'>' of type <class 'type'>.
+
+c
+	Takes a subclass of typing.Union[int, str] although received '<class 'float'>' of type <class 'type'>.
+```
 ## Installation
 
 `$ pip install valimp`
@@ -210,6 +258,7 @@ In short, if you only want to validate the type of function inputs then Pydantic
     * typing.Union ( `|` from 3.10 )
     * typing.Optional ( `<cls> | None` from 3.10)
     * collections.abc.Callable, although validation of subscripted types is **not** supported
+    * `type`, including subscripted, for example `type[int]`, to validate that an input is a subclass of the subscripted type
 * validation of container items for the following generic classes:
     * `list`
     * `dict`

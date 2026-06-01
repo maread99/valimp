@@ -2035,3 +2035,87 @@ def test_numeric_tower():
     # nor should a complex be accepted where a float is annotated.
     with pytest.raises(m.InputsError, match=r"Takes type <class 'float'>"):
         f_float(complex_in)
+
+
+class _Animal:
+    pass
+
+
+class _Dog(_Animal):
+    pass
+
+
+def test_type_annotation_valid():
+    """Verify validation of `type` and subscripted `type` annotations."""
+
+    @m.parse
+    def f(
+        a: type,
+        b: type[int],
+        c: type[_Animal],
+        d: type[Union[int, str]],
+        e: typing.Type[int],  # noqa: UP006
+        f_meta: Annotated[type[int], "some_meta"],
+        g: Optional[type[int]],
+    ) -> tuple:
+        return a, b, c, d, e, f_meta, g
+
+    # bare `type` takes any class
+    rtrn = f(dict, int, _Animal, str, int, int, None)
+    assert rtrn == (dict, int, _Animal, str, int, int, None)
+
+    # subclasses (including the class itself) are valid
+    rtrn = f(list, bool, _Dog, int, int, int, int)
+    assert rtrn == (list, bool, _Dog, int, int, int, int)
+
+
+def test_type_annotation_invalid():
+    """Verify errors raised for invalid `type` annotation inputs."""
+
+    @m.parse
+    def f(
+        a: type[int],
+        b: type[_Animal],
+        c: type[Union[int, str]],
+    ) -> tuple:
+        return a, b, c
+
+    # a class that is not a subclass of the subscripted type
+    msg_a = re.escape("a\n\tTakes a subclass of <class 'int'> although received")
+    with pytest.raises(m.InputsError, match=msg_a):
+        f(str, _Animal, int)
+
+    msg_b = re.escape(
+        "b\n\tTakes a subclass of <class 'tests.test_valimp._Animal'> although received"
+    )
+    with pytest.raises(m.InputsError, match=msg_b):
+        f(int, int, int)
+
+    msg_c = _msg_re("c\n\tTakes a subclass of typing.Union[int, str] although received")
+    with pytest.raises(m.InputsError, match=msg_c):
+        f(int, _Animal, float)
+
+    # an instance (not a class) is not valid for a `type` annotation
+    msg_inst = re.escape("Takes type <class 'type'> although received '3'")
+    with pytest.raises(m.InputsError, match=msg_inst):
+        f(3, _Animal, int)
+
+
+def test_type_annotation_coerce_parse():
+    """Verify Coerce and Parser work with a `type` annotation."""
+
+    @m.parse
+    def f_coerce(a: Annotated[type[int], m.Coerce(str)]) -> str:
+        return a
+
+    # the class is coerced (here to its string representation)
+    assert f_coerce(int) == str(int)
+
+    @m.parse
+    def f_parser(
+        a: Annotated[type[_Animal], m.Parser(lambda _n, obj, _p: obj())],
+    ) -> _Animal:
+        return a
+
+    # parser receives the class and here instantiates it
+    assert isinstance(f_parser(_Dog), _Dog)

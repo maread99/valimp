@@ -178,6 +178,17 @@ The following type annotations are supported:
     validated in the same way as the above unsubscripted example:
         f(param: collections.abc.Callable[[str, int], int])
 
+    `type`. Example:
+        f(param: type)
+    If the type is subscripted then the input will be validated as being a
+    subclass of the subscripted type. For example, the following will
+    validate that 'param' receives a subclass of int (including int
+    itself):
+        f(param: type[int])
+    The subscripted argument can be a union, in which case the input will
+    be validated as being a subclass of one of the union members:
+        f(param: type[Union[int, str]])
+
 NO_ITEM_VALIDATION
 Validation of the type of items in a container can be skipped for any
 parameter by using `typing.Annotated` to define the annotation and
@@ -395,6 +406,31 @@ NO_ITEM_VALIDATION = "dlkj3ow61"
 STRICT_LITERAL = "dlkj3ow62"
 
 
+def validates_as_subclass(obj: Any, hint: type[Any] | typing._Final) -> bool:
+    """Query if a class conforms with the argument to a `type` hint.
+
+    Parameters
+    ----------
+    obj
+        Class to validate as conforming with `hint`.
+
+    hint
+        Argument to a `type` hint, for example `int` for the hint
+        `type[int]`. Can be a single type, `typing.Any` or a union of
+        types.
+    """
+    if hint is typing.Any:
+        return True
+    if typing.get_origin(hint) is typing.Union or (
+        hasattr(types, "UnionType") and isinstance(hint, types.UnionType)
+    ):
+        return any(validates_as_subclass(obj, arg) for arg in typing.get_args(hint))
+    try:
+        return issubclass(obj, hint)
+    except TypeError:
+        return False
+
+
 def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
     obj: Any,
     hint: type[Any] | typing._Final,
@@ -506,6 +542,17 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
     if origin is collections.abc.Callable:
         # validation of any subscripted types is not currently supported
         return VALIDATED
+
+    if origin is type:
+        # `obj` already validated as being a class (isinstance(obj, type))
+        if not hint_args or validates_as_subclass(obj, hint_args[0]):
+            return VALIDATED
+        if not rtrn_error:
+            return FAILED_SIMPLE
+        return False, TypeError(
+            f"Takes a subclass of {hint_args[0]} although received '{obj}'"
+            f" of type {type(obj)}."
+        )
 
     if origin is tuple and hint_args[-1] is not Ellipsis and len(obj) != len(hint_args):
         if not rtrn_error:
