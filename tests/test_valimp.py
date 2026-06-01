@@ -29,6 +29,7 @@ import valimp as m
 _UNION_TYPE_REPRS = {
     "str, int, set": "str | int | set",
     "int, float": "int | float",
+    "int, str": "int | str",
 }
 
 
