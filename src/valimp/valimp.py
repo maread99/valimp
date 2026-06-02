@@ -180,10 +180,10 @@ The following type annotations are supported:
 
     `type`. Example:
         f(param: type)
-    If the type is subscripted then the input will be validated as being a
-    subclass of the subscripted type. For example, the following will
-    validate that 'param' receives a subclass of int (including int
-    itself):
+    If type is subscripted then the input will be validated as being a
+    subclass of the subscripted type or the subscripted type itself. For
+    example, the following will validate that 'param' receives a subclass
+    of `int` or `int` itself:
         f(param: type[int])
     The subscripted argument can be a union, in which case the input will
     be validated as being a subclass of one of the union members:
@@ -531,7 +531,7 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
             f" although received '{obj}'."
         )
 
-    # validate object is instance of the origin 'type'
+    # validate object is instance of the origin 'type' (if it isn't then raise)
     if not isinstance(obj, origin):
         if not rtrn_error:
             return FAILED_SIMPLE
@@ -544,7 +544,6 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
         return VALIDATED
 
     if origin is type:
-        # `obj` already validated as being a class (isinstance(obj, type))
         if not hint_args or validates_as_subclass(obj, hint_args[0]):
             return VALIDATED
         if not rtrn_error:

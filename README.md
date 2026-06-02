@@ -258,7 +258,7 @@ In short, if you only want to validate the type of function inputs then Pydantic
     * typing.Union ( `|` from 3.10 )
     * typing.Optional ( `<cls> | None` from 3.10)
     * collections.abc.Callable, although validation of subscripted types is **not** supported
-    * `type`, including subscripted, for example `type[int]`, to validate that an input is a subclass of the subscripted type
+    * `type`, including subscripted types, for example `type[int]`, to validate that an input is a subclass of the subscripted type
 * validation of container items for the following generic classes:
     * `list`
     * `dict`

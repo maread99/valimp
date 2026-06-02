@@ -2046,31 +2046,36 @@ class _Dog(_Animal):
     pass
 
 
-def test_type_annotation_valid():
+def test_valid_type():
     """Verify validation of `type` and subscripted `type` annotations."""
 
     @m.parse
     def f(
         a: type,
-        b: type[int],
-        c: type[_Animal],
-        d: type[Union[int, str]],
-        e: typing.Type[int],  # noqa: UP006
-        f_meta: Annotated[type[int], "some_meta"],
-        g: Optional[type[int]],
+        b: type[Any],
+        c: type[int],
+        d: type[_Animal],
+        e: type[Union[int, str]],
+        f: typing.Type[int],  # noqa: UP006
+        g_meta: Annotated[type[int], "some_meta"],
+        h: Optional[type[int]],
+        i: Annotated[type[int], m.Coerce(str)],
+        j: Annotated[type[_Animal], m.Parser(lambda _n, obj, _p: obj())],
     ) -> tuple:
-        return a, b, c, d, e, f_meta, g
+        return a, b, c, d, e, f, g_meta, h, i, j
 
     # bare `type` takes any class
-    rtrn = f(dict, int, _Animal, str, int, int, None)
-    assert rtrn == (dict, int, _Animal, str, int, int, None)
+    rtrn = f(dict, set, int, _Animal, str, int, int, None, int, _Animal)
+    assert rtrn[:-1] == (dict, set, int, _Animal, str, int, int, None, str(int))
+    assert isinstance(rtrn[-1], _Animal)
 
     # subclasses (including the class itself) are valid
-    rtrn = f(list, bool, _Dog, int, int, int, int)
-    assert rtrn == (list, bool, _Dog, int, int, int, int)
+    rtrn = f(list, tuple, bool, _Dog, int, int, int, int, bool, _Dog)
+    assert rtrn[:-1] == (list, tuple, bool, _Dog, int, int, int, int, str(bool))
+    assert isinstance(rtrn[-1], _Dog)
 
 
-def test_type_annotation_invalid():
+def test_invalid_inputs_type():
     """Verify errors raised for invalid `type` annotation inputs."""
 
     @m.parse
@@ -2078,45 +2083,37 @@ def test_type_annotation_invalid():
         a: type[int],
         b: type[_Animal],
         c: type[Union[int, str]],
+        d: type[int],
     ) -> tuple:
         return a, b, c
 
     # a class that is not a subclass of the subscripted type
     msg_a = re.escape("a\n\tTakes a subclass of <class 'int'> although received")
     with pytest.raises(m.InputsError, match=msg_a):
-        f(str, _Animal, int)
+        f(str, _Animal, int, int)
 
     msg_b = re.escape(
         "b\n\tTakes a subclass of <class 'tests.test_valimp._Animal'> although received"
     )
     with pytest.raises(m.InputsError, match=msg_b):
-        f(int, int, int)
+        f(int, int, int, int)
 
     msg_c = _msg_re("c\n\tTakes a subclass of typing.Union[int, str] although received")
     with pytest.raises(m.InputsError, match=msg_c):
-        f(int, _Animal, float)
+        f(int, _Animal, float, int)
 
     # an instance (not a class) is not valid for a `type` annotation
-    msg_inst = re.escape("Takes type <class 'type'> although received '3'")
+    msg_inst = re.escape("d\n\tTakes type <class 'type'> although received '3'")
     with pytest.raises(m.InputsError, match=msg_inst):
-        f(3, _Animal, int)
+        f(int, _Animal, int, 3)
 
-
-def test_type_annotation_coerce_parse():
-    """Verify Coerce and Parser work with a `type` annotation."""
-
-    @m.parse
-    def f_coerce(a: Annotated[type[int], m.Coerce(str)]) -> str:
-        return a
-
-    # the class is coerced (here to its string representation)
-    assert f_coerce(int) == str(int)
-
-    @m.parse
-    def f_parser(
-        a: Annotated[type[_Animal], m.Parser(lambda _n, obj, _p: obj())],
-    ) -> _Animal:
-        return a
-
-    # parser receives the class and here instantiates it
-    assert isinstance(f_parser(_Dog), _Dog)
+    # AIDEV-TODO: complete the match_all expression below to reflect the full expected
+    # error message - this will include each of the four matches noted above, allowing
+    # for those four 'with pytest.raises...' checks to be removed in favour of this
+    # single check. The message to match should be written to a global constant in the
+    # same way as the `test_invalid_inputs_dict_items` test uses the global constant
+    # `INVALID_MSG_DICT_ITEMS` for this purpose (and other tests use similarly arranged
+    # global constants).
+    match_all = ""
+    with pytest.raises(m.InputsError, match=match_all):
+        f(str, int, float, 3)
