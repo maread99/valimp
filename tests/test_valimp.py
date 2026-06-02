@@ -29,6 +29,7 @@ import valimp as m
 _UNION_TYPE_REPRS = {
     "str, int, set": "str | int | set",
     "int, float": "int | float",
+    "int, str": "int | str",
 }
 
 
@@ -2035,3 +2036,78 @@ def test_numeric_tower():
     # nor should a complex be accepted where a float is annotated.
     with pytest.raises(m.InputsError, match=r"Takes type <class 'float'>"):
         f_float(complex_in)
+
+
+class _Animal:
+    pass
+
+
+class _Dog(_Animal):
+    pass
+
+
+def test_valid_type():
+    """Verify validation of `type` and subscripted `type` annotations."""
+
+    @m.parse
+    def f(
+        a: type,
+        b: type[Any],
+        c: type[int],
+        d: type[_Animal],
+        e: type[Union[int, str]],
+        f: typing.Type[int],  # noqa: UP006
+        g_meta: Annotated[type[int], "some_meta"],
+        h: Optional[type[int]],
+        i: Annotated[type[int], m.Coerce(str)],
+        j: Annotated[type[_Animal], m.Parser(lambda _n, obj, _p: obj())],
+    ) -> tuple:
+        return a, b, c, d, e, f, g_meta, h, i, j
+
+    # bare `type` takes any class
+    rtrn = f(dict, set, int, _Animal, str, int, int, None, int, _Animal)
+    assert rtrn[:-1] == (dict, set, int, _Animal, str, int, int, None, str(int))
+    assert isinstance(rtrn[-1], _Animal)
+
+    # subclasses (including the class itself) are valid
+    rtrn = f(list, tuple, bool, _Dog, int, int, int, int, bool, _Dog)
+    assert rtrn[:-1] == (list, tuple, bool, _Dog, int, int, int, int, str(bool))
+    assert isinstance(rtrn[-1], _Dog)
+
+
+INVALID_MSG_TYPE = _msg_re(
+    """The following inputs to 'f' do not conform with the corresponding type annotation:
+
+a
+	Takes a subclass of <class 'int'> although received '<class 'str'>'.
+
+b
+	Takes a subclass of <class 'tests.test_valimp._Animal'> although received '<class 'int'>'.
+
+c
+	Takes a subclass of typing.Union[int, str] although received '<class 'float'>'.
+
+d
+	Takes type <class 'type'> although received '3' of type <class 'int'>."""
+)
+
+
+def test_invalid_inputs_type():
+    """Verify errors raised for invalid `type` annotation inputs."""
+
+    @m.parse
+    def f(
+        a: type[int],
+        b: type[_Animal],
+        c: type[Union[int, str]],
+        d: type[int],
+    ) -> tuple:
+        return a, b, c, d
+
+    # a, a class that is not a subclass of the subscripted type
+    # b, a class that is not a subclass of the subscripted custom type
+    # c, a class that is not a subclass of any member of the subscripted union
+    # d, an instance (not a class) is not valid for a `type` annotation
+    regex = re.compile("^" + INVALID_MSG_TYPE + "$")
+    with pytest.raises(m.InputsError, match=regex):
+        f(str, int, float, 3)

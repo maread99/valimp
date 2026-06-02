@@ -37,35 +37,44 @@ def public_function(
         Coerce(str),
         Parser(lambda name, obj, _: obj + f"_{name}")
     ],
+    # validate input is a class (rather than an instance)
+    g: type,
+    # validate input is subclass of a specific class (or that class itself) ...
+    h: type[int],
+    # ... or of specific classes...
+    i: type[Union[int, str]],  # type[int | str]
     # support for packing extra arguments if required, can be optionally typed...
     *args: Annotated[
         Union[int, float, str],  # int | float | str
         Coerce(int)
     ],
     # support for optional types
-    g: Optional[str],  # str | None
+    j: Optional[str],  # str | None
     # define default values dynamically with reference to earlier inputs
-    h: Annotated[
+    k: Annotated[
         Optional[float],  # float | None
         Parser(lambda _, obj, params: params["b"] if obj is None else obj)
     ] = None,
     # support for packing excess kwargs if required, can be optionally typed...
     # **kwargs: Union[int, float]
 ) -> dict[str, Any]:
-    return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "args",args, "g":g, "h":h}
+    return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h, "i":i, "args":args, "j":j, "k":k}
 
 public_function(
-    # NB parameters 'a' through 'f' could be passed positionally
+    # NB parameters 'a' through 'i' can be passed positionally
     "zero",  # a
     1.0,  # b
     {"two": 2},  # c
     3.3,  # d, will be coerced from float to int, i.e. to 3
     "four",  # e, will be parsed to "four_e_zero"
     5,  # f, will be coerced to str and then parsed to "5_f"
+    str,  # g
+    bool,  # h, a subclass of int
+    int,  # i, one of the subscripted classes
     "10",  # extra arg, will be coerced to int and packed
     20,  # extra arg, will be packed
-    g="keyword_arg_g",
-    # h, not passed, will be assigned dynamically as parameter b (i.e. 1.0)
+    j="keyword_arg_j",
+    # k, not passed, will be assigned dynamically as parameter b (i.e. 1.0)
 )
 ```
 returns:
@@ -76,9 +85,12 @@ returns:
  'd': 3,
  'e': 'four_e_zero',
  'f': '5_f',
+ 'g': <class 'str'>,
+ 'h': <class 'bool'>,
+ 'i': <class 'int'>,
  'args': (10, 20),
- 'g': 'keyword_arg_g',
- 'h': 1.0}
+ 'j': 'keyword_arg_j',
+ 'k': 1.0}
  ```
  And if there are invalid inputs...
 ```python
@@ -89,7 +101,10 @@ public_function(
     d=3.2, # valid input
     e="valid input",
     f=5.0,  # INVALID, not a str or an int
-    g="valid input",
+    g=str,  # valid input
+    h=str,  # INVALID, str is not int or a subclass of int
+    i=bool,  # valid input
+    j="valid input",
 )
 ```
 raises:
@@ -107,6 +122,9 @@ c
 
 f
 	Takes input that conforms with <(<class 'str'>, <class 'int'>)> although received '5.0' of type <class 'float'>.
+
+h
+	Takes a subclass of <class 'int'> although received '<class 'str'>'.
 ```
 And if the inputs do not match the signature...
 ```python
@@ -115,10 +133,9 @@ public_function(
     "invalid input",  # invalid (not int or float), included in errors
     {"two": 2},
     3.2,
-    # no argument passed for required positional arg 'e'
-    # no argument passed for required positional arg 'f'
+    # no argument passed for required positional args 'e', 'f', 'g', 'h' and 'i'
     a="a again",  # passing multiple values for parameter 'a'
-    # no argument passed for required keyword arg 'g'
+    # no argument passed for required keyword arg 'j'
     not_a_kwarg="not a kwarg",  # including an unexpected kwarg
 )
 ```
@@ -130,9 +147,9 @@ Got multiple values for argument: 'a'.
 
 Got unexpected keyword argument: 'not_a_kwarg'.
 
-Missing 2 positional arguments: 'e' and 'f'.
+Missing 5 positional arguments: 'e', 'f', 'g', 'h' and 'i'.
 
-Missing 1 keyword-only argument: 'g'.
+Missing 1 keyword-only argument: 'j'.
 
 The following inputs to 'public_function' do not conform with the corresponding type annotation:
 
@@ -210,6 +227,7 @@ In short, if you only want to validate the type of function inputs then Pydantic
     * typing.Union ( `|` from 3.10 )
     * typing.Optional ( `<cls> | None` from 3.10)
     * collections.abc.Callable, although validation of subscripted types is **not** supported
+    * `type`, including subscripted types, for example `type[int]`, to validate that an input is a subclass of the subscripted type
 * validation of container items for the following generic classes:
     * `list`
     * `dict`
