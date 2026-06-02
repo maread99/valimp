@@ -207,16 +207,9 @@ As for validating public function input, in the early releases of Pydantic V2 th
 
 In short, if you only want to validate the type of function inputs then Pydantic V2 `@validate_call` will do the trick. If you're after additional validation, parsing or coercion then chances are you'll find `valimp` to be a simpler option.
 
-## Limitations and Development
+## What's supported
 
-`valimp` does NOT currently support:
-  - Positional-only arguments. Any '/' in the signature (to define
-  positional-only arguments) will be ignored. Consequently valimp DOES
-  allow intended positional-only arguments to be passed as keyword
-  arguments.
-  - Validation of subscripted types in `collections.abc.Callable` (although Valimp will verify that the passed value is callable).
-
-`valimp` currently supports:
+`valimp` supports:
 * use of the following type annotations:
     * built-in classes, for example `int`, `str`, `list`, `dict` etc
     * custom classes
@@ -226,8 +219,10 @@ In short, if you only want to validate the type of function inputs then Pydantic
     * typing.Literal
     * typing.Union ( `|` from 3.10 )
     * typing.Optional ( `<cls> | None` from 3.10)
-    * collections.abc.Callable, although validation of subscripted types is **not** supported
-    * `type`, including subscripted types, for example `type[int]`, to validate that an input is a subclass of the subscripted type
+    * collections.abc.Callable, although validation of subscripted types is **not**
+    supported
+    * `type`, including subscripted types, for example `type[int]`, to validate that an
+    input is a subclass of the subscripted type
 * validation of container items for the following generic classes:
     * `list`
     * `dict`
@@ -235,7 +230,22 @@ In short, if you only want to validate the type of function inputs then Pydantic
     * `set`
     * `collections.abc.Sequence`
     * `collections.abc.Mapping`
-* packing and optionally coercing, parsing and validating packed objects, i.e. objects received to, for example, *args and **kwargs.
+* packing and optionally coercing, parsing and validating packed objects, i.e. objects
+    received to, for example, *args and **kwargs.
+
+`valimp` does NOT support:
+  - Validation of subscripted types in `collections.abc.Callable`. Any subscriptions to
+  `Callable` are ignored (for example `a_param: Callable[[int, str], [str]`). `valimp`
+  is concerned with validating the types of arguments passed at runtime, **insepction of
+  callables' signatures is outside the scope of the package**. (Note that `valimp` does
+  verify that an object passed to a parameter annotated as `Callable` is in fact
+  callable).
+
+`valimp` does NOT currently support:
+  - Positional-only arguments. Any '/' in the signature (to define
+  positional-only arguments) will be ignored. Consequently valimp DOES
+  allow intended positional-only arguments to be passed as keyword
+  arguments.
 
 The library has been built with development in mind and PRs are very much welcome!
 
