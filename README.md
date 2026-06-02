@@ -38,43 +38,43 @@ def public_function(
         Parser(lambda name, obj, _: obj + f"_{name}")
     ],
     # validate that input is a class (rather than an instance)
-    i: type,
+    g: type,
     # validate that input is int or a subclass of int
-    j: type[int],
+    h: type[int],
     # the subscripted type can be a union
-    k: type[Union[int, str]],  # type[int | str]
+    i: type[Union[int, str]],  # type[int | str]
     # support for packing extra arguments if required, can be optionally typed...
     *args: Annotated[
         Union[int, float, str],  # int | float | str
         Coerce(int)
     ],
     # support for optional types
-    g: Optional[str],  # str | None
+    j: Optional[str],  # str | None
     # define default values dynamically with reference to earlier inputs
-    h: Annotated[
+    k: Annotated[
         Optional[float],  # float | None
         Parser(lambda _, obj, params: params["b"] if obj is None else obj)
     ] = None,
     # support for packing excess kwargs if required, can be optionally typed...
     # **kwargs: Union[int, float]
 ) -> dict[str, Any]:
-    return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "i":i, "j":j, "k":k, "args":args, "g":g, "h":h}
+    return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h, "i":i, "args":args, "j":j, "k":k}
 
 public_function(
-    # NB parameters 'a' through 'k' could be passed positionally
+    # NB parameters 'a' through 'i' could be passed positionally
     "zero",  # a
     1.0,  # b
     {"two": 2},  # c
     3.3,  # d, will be coerced from float to int, i.e. to 3
     "four",  # e, will be parsed to "four_e_zero"
     5,  # f, will be coerced to str and then parsed to "5_f"
-    str,  # i, valid, any class
-    int,  # j, valid, int itself is valid
-    bool,  # k, valid, bool is a subclass of int (a member of the union)
+    str,  # g, valid, any class
+    int,  # h, valid, int itself is valid
+    bool,  # i, valid, bool is a subclass of int (a member of the union)
     "10",  # extra arg, will be coerced to int and packed
     20,  # extra arg, will be packed
-    g="keyword_arg_g",
-    # h, not passed, will be assigned dynamically as parameter b (i.e. 1.0)
+    j="keyword_arg_j",
+    # k, not passed, will be assigned dynamically as parameter b (i.e. 1.0)
 )
 ```
 returns:
@@ -85,12 +85,12 @@ returns:
  'd': 3,
  'e': 'four_e_zero',
  'f': '5_f',
- 'i': <class 'str'>,
- 'j': <class 'int'>,
- 'k': <class 'bool'>,
+ 'g': <class 'str'>,
+ 'h': <class 'int'>,
+ 'i': <class 'bool'>,
  'args': (10, 20),
- 'g': 'keyword_arg_g',
- 'h': 1.0}
+ 'j': 'keyword_arg_j',
+ 'k': 1.0}
  ```
  And if there are invalid inputs...
 ```python
@@ -101,10 +101,10 @@ public_function(
     d=3.2, # valid input
     e="valid input",
     f=5.0,  # INVALID, not a str or an int
-    i=str,  # valid input, any class
-    j=str,  # INVALID, str is not int or a subclass of int
-    k=bool,  # valid input, bool is a subclass of int
-    g="valid input",
+    g=str,  # valid input, any class
+    h=str,  # INVALID, str is not int or a subclass of int
+    i=bool,  # valid input, bool is a subclass of int
+    j="valid input",
 )
 ```
 raises:
@@ -123,8 +123,8 @@ c
 f
 	Takes input that conforms with <(<class 'str'>, <class 'int'>)> although received '5.0' of type <class 'float'>.
 
-j
-	Takes a subclass of <class 'int'> although received '<class 'str'>' of type <class 'type'>.
+h
+	Takes a subclass of <class 'int'> although received '<class 'str'>'.
 ```
 And if the inputs do not match the signature...
 ```python
@@ -133,9 +133,9 @@ public_function(
     "invalid input",  # invalid (not int or float), included in errors
     {"two": 2},
     3.2,
-    # no argument passed for required positional args 'e', 'f', 'i', 'j' and 'k'
+    # no argument passed for required positional args 'e', 'f', 'g', 'h' and 'i'
     a="a again",  # passing multiple values for parameter 'a'
-    # no argument passed for required keyword arg 'g'
+    # no argument passed for required keyword arg 'j'
     not_a_kwarg="not a kwarg",  # including an unexpected kwarg
 )
 ```
@@ -147,9 +147,9 @@ Got multiple values for argument: 'a'.
 
 Got unexpected keyword argument: 'not_a_kwarg'.
 
-Missing 5 positional arguments: 'e', 'f', 'i', 'j' and 'k'.
+Missing 5 positional arguments: 'e', 'f', 'g', 'h' and 'i'.
 
-Missing 1 keyword-only argument: 'g'.
+Missing 1 keyword-only argument: 'j'.
 
 The following inputs to 'public_function' do not conform with the corresponding type annotation:
 
