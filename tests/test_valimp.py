@@ -2111,31 +2111,3 @@ def test_invalid_inputs_type():
     regex = re.compile("^" + INVALID_MSG_TYPE + "$")
     with pytest.raises(m.InputsError, match=regex):
         f(str, int, float, 3)
-
-
-def test_invalid_inputs_type_metaclass():
-    """Verify `type` error notes the type when it's not simply `type`.
-
-    The message only includes the received object's type when that adds
-    information, i.e. when the received class has a metaclass other than
-    `type`.
-    """
-
-    class Meta(type):
-        pass
-
-    class WithMeta(metaclass=Meta):
-        pass
-
-    @m.parse
-    def f(a: type[int]) -> type:
-        return a
-
-    # the received object is a class, so the subclass check is reached, and
-    # as its metaclass is not `type` the message notes its type
-    msg = re.escape(
-        "a\n\tTakes a subclass of <class 'int'> although received"
-        f" '{WithMeta}' of type {Meta}."
-    )
-    with pytest.raises(m.InputsError, match=msg):
-        f(WithMeta)

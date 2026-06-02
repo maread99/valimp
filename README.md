@@ -37,11 +37,11 @@ def public_function(
         Coerce(str),
         Parser(lambda name, obj, _: obj + f"_{name}")
     ],
-    # validate that input is a class (rather than an instance)
+    # validate input is a class (rather than an instance)
     g: type,
-    # validate that input is int or a subclass of int
+    # validate input is subclass of a specific class (or that class itself) ...
     h: type[int],
-    # the subscripted type can be a union
+    # ... or of specific classes...
     i: type[Union[int, str]],  # type[int | str]
     # support for packing extra arguments if required, can be optionally typed...
     *args: Annotated[
@@ -61,16 +61,16 @@ def public_function(
     return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h, "i":i, "args":args, "j":j, "k":k}
 
 public_function(
-    # NB parameters 'a' through 'i' could be passed positionally
+    # NB parameters 'a' through 'i' can be passed positionally
     "zero",  # a
     1.0,  # b
     {"two": 2},  # c
     3.3,  # d, will be coerced from float to int, i.e. to 3
     "four",  # e, will be parsed to "four_e_zero"
     5,  # f, will be coerced to str and then parsed to "5_f"
-    str,  # g, valid, any class
-    int,  # h, valid, int itself is valid
-    bool,  # i, valid, bool is a subclass of int (a member of the union)
+    str,  # g
+    bool,  # h, a subclass of int
+    int,  # i, one of the subscripted classes
     "10",  # extra arg, will be coerced to int and packed
     20,  # extra arg, will be packed
     j="keyword_arg_j",
@@ -86,8 +86,8 @@ returns:
  'e': 'four_e_zero',
  'f': '5_f',
  'g': <class 'str'>,
- 'h': <class 'int'>,
- 'i': <class 'bool'>,
+ 'h': <class 'bool'>,
+ 'i': <class 'int'>,
  'args': (10, 20),
  'j': 'keyword_arg_j',
  'k': 1.0}
@@ -101,9 +101,9 @@ public_function(
     d=3.2, # valid input
     e="valid input",
     f=5.0,  # INVALID, not a str or an int
-    g=str,  # valid input, any class
+    g=str,  # valid input
     h=str,  # INVALID, str is not int or a subclass of int
-    i=bool,  # valid input, bool is a subclass of int
+    i=bool,  # valid input
     j="valid input",
 )
 ```

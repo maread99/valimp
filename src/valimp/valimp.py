@@ -548,8 +548,6 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
             return VALIDATED
         if not rtrn_error:
             return FAILED_SIMPLE
-        # `obj` is a class (passed the isinstance check above), so only note
-        # its type if that adds information, i.e. if it's not simply `type`.
         suffix = "." if type(obj) is type else f" of type {type(obj)}."
         return False, TypeError(
             f"Takes a subclass of {hint_args[0]} although received '{obj}'{suffix}"
