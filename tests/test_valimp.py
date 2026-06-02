@@ -2075,6 +2075,23 @@ def test_valid_type():
     assert isinstance(rtrn[-1], _Dog)
 
 
+INVALID_MSG_TYPE = _msg_re(
+    """The following inputs to 'f' do not conform with the corresponding type annotation:
+
+a
+	Takes a subclass of <class 'int'> although received '<class 'str'>' of type <class 'type'>.
+
+b
+	Takes a subclass of <class 'tests.test_valimp._Animal'> although received '<class 'int'>' of type <class 'type'>.
+
+c
+	Takes a subclass of typing.Union[int, str] although received '<class 'float'>' of type <class 'type'>.
+
+d
+	Takes type <class 'type'> although received '3' of type <class 'int'>."""
+)
+
+
 def test_invalid_inputs_type():
     """Verify errors raised for invalid `type` annotation inputs."""
 
@@ -2085,35 +2102,12 @@ def test_invalid_inputs_type():
         c: type[Union[int, str]],
         d: type[int],
     ) -> tuple:
-        return a, b, c
+        return a, b, c, d
 
-    # a class that is not a subclass of the subscripted type
-    msg_a = re.escape("a\n\tTakes a subclass of <class 'int'> although received")
-    with pytest.raises(m.InputsError, match=msg_a):
-        f(str, _Animal, int, int)
-
-    msg_b = re.escape(
-        "b\n\tTakes a subclass of <class 'tests.test_valimp._Animal'> although received"
-    )
-    with pytest.raises(m.InputsError, match=msg_b):
-        f(int, int, int, int)
-
-    msg_c = _msg_re("c\n\tTakes a subclass of typing.Union[int, str] although received")
-    with pytest.raises(m.InputsError, match=msg_c):
-        f(int, _Animal, float, int)
-
-    # an instance (not a class) is not valid for a `type` annotation
-    msg_inst = re.escape("d\n\tTakes type <class 'type'> although received '3'")
-    with pytest.raises(m.InputsError, match=msg_inst):
-        f(int, _Animal, int, 3)
-
-    # AIDEV-TODO: complete the match_all expression below to reflect the full expected
-    # error message - this will include each of the four matches noted above, allowing
-    # for those four 'with pytest.raises...' checks to be removed in favour of this
-    # single check. The message to match should be written to a global constant in the
-    # same way as the `test_invalid_inputs_dict_items` test uses the global constant
-    # `INVALID_MSG_DICT_ITEMS` for this purpose (and other tests use similarly arranged
-    # global constants).
-    match_all = ""
-    with pytest.raises(m.InputsError, match=match_all):
+    # a, a class that is not a subclass of the subscripted type
+    # b, a class that is not a subclass of the subscripted custom type
+    # c, a class that is not a subclass of any member of the subscripted union
+    # d, an instance (not a class) is not valid for a `type` annotation
+    regex = re.compile("^" + INVALID_MSG_TYPE + "$")
+    with pytest.raises(m.InputsError, match=regex):
         f(str, int, float, 3)
