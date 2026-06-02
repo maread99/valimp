@@ -241,12 +241,6 @@ In short, if you only want to validate the type of function inputs then Pydantic
   verify that an object passed to a parameter annotated as `Callable` is in fact
   callable).
 
-`valimp` does NOT currently support:
-  - Positional-only arguments. Any '/' in the signature (to define
-  positional-only arguments) will be ignored. Consequently valimp DOES
-  allow intended positional-only arguments to be passed as keyword
-  arguments.
-
 The library has been built with development in mind and PRs are very much welcome!
 
 ## License
