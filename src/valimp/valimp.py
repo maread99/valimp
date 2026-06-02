@@ -189,6 +189,13 @@ The following type annotations are supported:
     be validated as being a subclass of one of the union members:
         f(param: type[Union[int, str]])
 
+Nested containers
+Items in nested containers will by default by validated against the
+subscripted annoations. For example the following will validate that the
+outer tuple contains any number of lists, that those lists contain only
+sets and that the sets contains only int or float.
+    f(param: tuple[list[set[Union[int, float]]], ...])
+
 NO_ITEM_VALIDATION
 Validation of the type of items in a container can be skipped for any
 parameter by using `typing.Annotated` to define the annotation and
@@ -202,20 +209,14 @@ but not that the keys are str or that the values are either int or float:
         ]
     )
 
-Nested containers
-Items in nested containers will by default by validated against the
-subscripted annoations. For example the following will validate that the
-outer tuple contains any number of lists, that those lists contain only
-sets and that the sets contains only int or float.
-    f(param: tuple[list[set[Union[int, float]]], ...])
-
 Including NO_ITEM_VALIDATION to the annotation's metadata will result in
-the contained items not being validated at any level of nesting.
+contained items not being validated at any level of nesting.
 
 Item validation can be skipped for ALL parameters by passing the
 `no_item_validation` argument to the decorator as True. For example, the
 following will validate that 'a', 'b' and 'c' receive a list, dict and
-tuple respectively, but will not validate the type of any of the items:
+tuple respectively, but will not validate the type of any of the
+contained items:
     @parse(no_item_validation=True)
     def f(
         a: list[str],
@@ -1015,7 +1016,7 @@ def parse(  # noqa: C901
         Skip validation of the type of items in any container, at all
         levels of nesting, for all parameters. This has the same effect
         as including the `NO_ITEM_VALIDATION` constant to the
-        `typing.Annotated` metadata of every parameter, defaults to False.
+        `typing.Annotated` metadata of every parameter. Defaults to False.
 
     See valimp module doc (valimp.__doc__).
     """  # noqa: D401
@@ -1167,7 +1168,7 @@ def parse_cls(
         Skip validation of the type of items in any container, at all
         levels of nesting, for all parameters. This has the same effect
         as including the `NO_ITEM_VALIDATION` constant to the
-        `typing.Annotated` metadata of every parameter, defaults to False.
+        `typing.Annotated` metadata of every parameter. Defaults to False.
     """
     if cls is None:
         return functools.partial(parse_cls, no_item_validation=no_item_validation)

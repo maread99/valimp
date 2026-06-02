@@ -2130,8 +2130,8 @@ def test_no_item_validation_decorator_arg():
     ) -> tuple:
         return a, b, c, d, e, f_, g, h
 
-    # all items invalid, but not validated as no_item_validation is True
-    rtrn = f(
+    # all items invalid, but not verified as `no_item_validation` is True
+    args = [
         ["one", "two"],
         {0: "val0", 1: "val1"},
         ("one", "two"),
@@ -2140,41 +2140,42 @@ def test_no_item_validation_decorator_arg():
         ["one", "two"],
         {0: "val0"},
         ([{"one"}, "not a set"],),
-    )
-    assert rtrn == (
-        ["one", "two"],
-        {0: "val0", 1: "val1"},
-        ("one", "two"),
-        {"one", "two"},
-        ["one", "two"],
-        ["one", "two"],
-        {0: "val0"},
-        ([{"one"}, "not a set"],),
-    )
+    ]
+    rtrn = f(*args)
+    assert rtrn == tuple(args)
 
     # verify containers themselves are still validated
+    args[0] = "not a list"
     msg = (
         "The following inputs to 'f' do not conform with the corresponding type"
         " annotation:\n\na\n\tTakes type <class 'list'>"
     )
     with pytest.raises(m.InputsError, match=re.escape(msg)):
-        f(
-            "not a list",
-            {0: "val0"},
-            ("one",),
-            {"one"},
-            ["one"],
-            ["one"],
-            {0: "val0"},
-            ([{"one"}],),
-        )
+        f(*args)
+
+
+def test_no_item_validation_decorator_arg_false():
+    """Verify behaviour with `no_item_validation` as False."""
+
+    @m.parse(no_item_validation=False)
+    def f(a: list[int]) -> list[int]:
+        return a
+
+    assert f([1, 2]) == [1, 2]
+
+    msg = (
+        "The following inputs to 'f' do not conform with the corresponding type"
+        " annotation:\n\na\n\tTakes type <class 'list'> containing items"
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f(["one"])
 
 
 def test_no_item_validation_decorator_arg_default():
-    """Verify default behaviour with `no_item_validation` as False.
+    """Verify default behaviour of `no_item_validation`.
 
     Items should be validated as normal when the decorator is called
-    with arguments but `no_item_validation` left as the default.
+    without arguments (i.e. as if `no_item_validation=False`).
     """
 
     @m.parse()
@@ -2182,7 +2183,6 @@ def test_no_item_validation_decorator_arg_default():
         return a
 
     assert f([1, 2]) == [1, 2]
-
     msg = (
         "The following inputs to 'f' do not conform with the corresponding type"
         " annotation:\n\na\n\tTakes type <class 'list'> containing items"
@@ -2202,7 +2202,7 @@ def test_no_item_validation_parse_cls_arg():
         a: list[int]
         b: dict[str, int]
 
-    # items invalid, but not validated as no_item_validation is True
+    # items invalid, but not verified as `no_item_validation` is True
     obj = DataCls(["one", "two"], {0: "val0"})
     assert obj.a == ["one", "two"]
     assert obj.b == {0: "val0"}
