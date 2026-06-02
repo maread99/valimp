@@ -212,6 +212,21 @@ sets and that the sets contains only int or float.
 Including NO_ITEM_VALIDATION to the annotation's metadata will result in
 the contained items not being validated at any level of nesting.
 
+Item validation can be skipped for ALL parameters by passing the
+`no_item_validation` argument to the decorator as True. For example, the
+following will validate that 'a', 'b' and 'c' receive a list, dict and
+tuple respectively, but will not validate the type of any of the items:
+    @parse(no_item_validation=True)
+    def f(
+        a: list[str],
+        b: dict[str, int],
+        c: tuple[str, ...],
+    ):
+        ...
+This is equivalent to including the NO_ITEM_VALIDATION constant to the
+metadata of every parameter's annotation. The `no_item_validation`
+argument can likewise be passed to `parse_cls`.
+
 Coercion and Parsing
 --------------------
 An input can be coerced to a specific type by annotating the parameter with
@@ -436,6 +451,7 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
     hint: type[Any] | typing._Final,
     annotated: typing._AnnotatedAlias | None,
     rtrn_error: bool = True,  # noqa: FBT001, FBT002
+    no_item_validation: bool = False,  # noqa: FBT001, FBT002
 ) -> tuple[bool, ValueError | TypeError | None]:
     """Query if object conforms with type hint.
 
@@ -459,6 +475,11 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
         validating hints comprising of nested hints, for example
         Union[str, List[str], Dict[str, Union[int, float]].
 
+    no_item_validation
+        Skip validation of the type of items in any container, at all
+        levels of nesting. Has the same effect as including the
+        `NO_ITEM_VALIDATION` constant to the `annotated` metadata.
+
     Returns
     -------
     tuple[bool, ValueError | TypeError | None]
@@ -479,7 +500,11 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
         hint_args = typing.get_args(hint)
         for hint_ in hint_args:
             validated, _ = validates_against_hint(
-                obj, hint_, annotated, rtrn_error=False
+                obj,
+                hint_,
+                annotated,
+                rtrn_error=False,
+                no_item_validation=no_item_validation,
             )
             if validated:
                 return VALIDATED
@@ -563,8 +588,10 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
 
     # Validation of container ITEMS
 
-    if not obj or (
-        annotated is not None and NO_ITEM_VALIDATION in annotated.__metadata__
+    if (
+        not obj
+        or no_item_validation
+        or (annotated is not None and NO_ITEM_VALIDATION in annotated.__metadata__)
     ):
         return VALIDATED
 
@@ -651,6 +678,7 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
 def validate_against_hints(
     kwargs: dict[str, Any],
     hints: dict[str, type[Any] | typing._Final],
+    no_item_validation: bool = False,  # noqa: FBT001, FBT002
 ) -> dict[str, ValueError | TypeError]:
     """Validate inputs against hints.
 
@@ -663,6 +691,10 @@ def validate_against_hints(
     kwargs
         All parameter inputs to be validated. Key as parameter name, value
         as object received by parameter.
+
+    no_item_validation
+        Skip validation of the type of items in any container, at all
+        levels of nesting, for all parameters.
 
     Returns
     -------
@@ -681,7 +713,9 @@ def validate_against_hints(
         else:
             annotated = None
 
-        validated, error = validates_against_hint(obj, hint, annotated)
+        validated, error = validates_against_hint(
+            obj, hint, annotated, no_item_validation=no_item_validation
+        )
         if not validated:
             if error is None:
                 raise AssertionError
@@ -965,11 +999,28 @@ def get_unreceived_kwargs(
     return {k: v for k, v in spec.kwonlydefaults.items() if k not in names_received}
 
 
-def parse(f) -> collections.abc.Callable:  # noqa: C901
+def parse(  # noqa: C901
+    f=None,
+    *,
+    no_item_validation: bool = False,
+) -> collections.abc.Callable:
     """Decorator to validate and parse user inputs.
+
+    Can be used directly as `@parse` or called with arguments as
+    `@parse(...)`.
+
+    Parameters
+    ----------
+    no_item_validation
+        Skip validation of the type of items in any container, at all
+        levels of nesting, for all parameters. This has the same effect
+        as including the `NO_ITEM_VALIDATION` constant to the
+        `typing.Annotated` metadata of every parameter, defaults to False.
 
     See valimp module doc (valimp.__doc__).
     """  # noqa: D401
+    if f is None:
+        return functools.partial(parse, no_item_validation=no_item_validation)
     spec = inspect.getfullargspec(f)
     hints = typing.get_type_hints(f, include_extras=True)
     hints = fix_hints_for_none_default(hints, spec)
@@ -1029,7 +1080,9 @@ def parse(f) -> collections.abc.Callable:  # noqa: C901
             if (k in all_param_names + extra_kwargs) or k.startswith(name_extra_args)
         }
 
-        ann_errors = validate_against_hints(params_as_kwargs, hints_)
+        ann_errors = validate_against_hints(
+            params_as_kwargs, hints_, no_item_validation=no_item_validation
+        )
 
         if sig_errors or ann_errors:
             raise InputsError(f.__name__, sig_errors, ann_errors)
@@ -1080,8 +1133,15 @@ def parse(f) -> collections.abc.Callable:  # noqa: C901
     return wrapped_f
 
 
-def parse_cls(cls):
+def parse_cls(
+    cls=None,
+    *,
+    no_item_validation: bool = False,
+):
     """Decorate a class to parse the constructor's arguments.
+
+    Can be used directly as `@parse_cls` or called with arguments as
+    `@parse_cls(...)`.
 
     Can be used to verify input to a `dataclasses.dataclass`. In the
     following example the a and b parameters will be parsed in the same
@@ -1100,6 +1160,16 @@ def parse_cls(cls):
 
     NB The @parse_cls decorator must be placed above the @dataclass
     decorator.
+
+    Parameters
+    ----------
+    no_item_validation
+        Skip validation of the type of items in any container, at all
+        levels of nesting, for all parameters. This has the same effect
+        as including the `NO_ITEM_VALIDATION` constant to the
+        `typing.Annotated` metadata of every parameter, defaults to False.
     """
-    cls.__init__ = parse(cls.__init__)
+    if cls is None:
+        return functools.partial(parse_cls, no_item_validation=no_item_validation)
+    cls.__init__ = parse(cls.__init__, no_item_validation=no_item_validation)
     return cls

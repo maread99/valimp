@@ -2111,3 +2111,106 @@ def test_invalid_inputs_type():
     regex = re.compile("^" + INVALID_MSG_TYPE + "$")
     with pytest.raises(m.InputsError, match=regex):
         f(str, int, float, 3)
+
+
+def test_no_item_validation_decorator_arg():
+    """Verify `no_item_validation` decorator argument to `parse`."""
+
+    @m.parse(no_item_validation=True)
+    def f(
+        a: list[int],
+        b: dict[str, int],
+        c: tuple[int, ...],
+        d: set[int],
+        e: Union[str, list[int]],
+        f_: abc.Sequence[int],
+        g: abc.Mapping[str, int],
+        # nested containers, validation skipped at all levels of nesting
+        h: tuple[list[set[int]], ...],
+    ) -> tuple:
+        return a, b, c, d, e, f_, g, h
+
+    # all items invalid, but not validated as no_item_validation is True
+    rtrn = f(
+        ["one", "two"],
+        {0: "val0", 1: "val1"},
+        ("one", "two"),
+        {"one", "two"},
+        ["one", "two"],
+        ["one", "two"],
+        {0: "val0"},
+        ([{"one"}, "not a set"],),
+    )
+    assert rtrn == (
+        ["one", "two"],
+        {0: "val0", 1: "val1"},
+        ("one", "two"),
+        {"one", "two"},
+        ["one", "two"],
+        ["one", "two"],
+        {0: "val0"},
+        ([{"one"}, "not a set"],),
+    )
+
+    # verify containers themselves are still validated
+    msg = (
+        "The following inputs to 'f' do not conform with the corresponding type"
+        " annotation:\n\na\n\tTakes type <class 'list'>"
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f(
+            "not a list",
+            {0: "val0"},
+            ("one",),
+            {"one"},
+            ["one"],
+            ["one"],
+            {0: "val0"},
+            ([{"one"}],),
+        )
+
+
+def test_no_item_validation_decorator_arg_default():
+    """Verify default behaviour with `no_item_validation` as False.
+
+    Items should be validated as normal when the decorator is called
+    with arguments but `no_item_validation` left as the default.
+    """
+
+    @m.parse()
+    def f(a: list[int]) -> list[int]:
+        return a
+
+    assert f([1, 2]) == [1, 2]
+
+    msg = (
+        "The following inputs to 'f' do not conform with the corresponding type"
+        " annotation:\n\na\n\tTakes type <class 'list'> containing items"
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f(["one"])
+
+
+def test_no_item_validation_parse_cls_arg():
+    """Verify `no_item_validation` decorator argument to `parse_cls`."""
+
+    @m.parse_cls(no_item_validation=True)
+    @dataclasses.dataclass
+    class DataCls:
+        """A decorated dataclass that skips item validation."""
+
+        a: list[int]
+        b: dict[str, int]
+
+    # items invalid, but not validated as no_item_validation is True
+    obj = DataCls(["one", "two"], {0: "val0"})
+    assert obj.a == ["one", "two"]
+    assert obj.b == {0: "val0"}
+
+    # verify containers themselves are still validated
+    msg = (
+        "The following inputs to '__init__' do not conform with the corresponding"
+        " type annotation:\n\na\n\tTakes type <class 'list'>"
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        DataCls("not a list", {0: "val0"})
