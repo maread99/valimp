@@ -23,6 +23,7 @@ import valimp as m
 # ruff: noqa: E741  # ambiguous-variable-name.  Use 'l' here as a parameter.
 # ruff: noqa: PYI051  # reduntant-literal-union.  Need to test for possible usage regardless.
 # ruff: noqa: ARG001  # unused-function-argument.  Just the nature, want to test errors raised during parsing before args received, not interested in the args as received.
+# ruff: noqa: ARG005  # unused-lambda-argument.  Lambdas used to exercise callable signature validation, their arguments are not used.
 # ruff: noqa: E501  # line-too-long
 
 # In Python 3.14+ repr(typing.Union[X, Y]) changed from "typing.Union[X, Y]" to "X | Y".
@@ -471,8 +472,8 @@ def dflt_values() -> abc.Iterator[dict[str, Any]]:
     yield dict(z=None, aa=4, bb=None, cc=True, kwonly_opt=None)
 
 
-def _func(x: Any) -> Any:
-    return x
+def _func(*args: Any) -> Any:
+    return args
 
 
 FUNC = _func
@@ -895,7 +896,7 @@ def test_invalid_types(f, inst, f_with_packed, datacls, valid_args):
                 {"not": "a sequence"},  # q
                 ["foo", "bar"],  # valid  # r
                 "not callable",  # s
-                lambda x: x,  # valid  # t
+                lambda a, b: a,  # valid  # t
                 lambda x: x,  # valid  # u
                 lambda x: x,  # valid  # v
                 ["list not in union"],  # w
@@ -912,6 +913,160 @@ def test_invalid_types(f, inst, f_with_packed, datacls, valid_args):
                 kwonly_req_b=None,  # valid
                 **extra_kwargs,
             )
+
+
+def test_callable_subscriptions():
+    """Verify validation of subscripted `collections.abc.Callable` hints."""
+
+    @m.parse
+    def f(
+        a: abc.Callable,
+        b: abc.Callable[[str], str],
+        c: abc.Callable[[str, int], str],
+        d: abc.Callable[..., str],
+    ) -> tuple:
+        return a, b, c, d
+
+    def good_b(x: str) -> str:
+        return x
+
+    def good_c(x: str, y: int) -> str:
+        return x
+
+    # all conform: matching annotations, matching arity, and lambda/`...`.
+    rtrn = f(good_b, good_b, good_c, lambda *args: "x")
+    assert rtrn == (good_b, good_b, good_c, lambda *args: "x") or rtrn[0] is good_b
+
+    # unannotated callables conform where arity matches (treated as `Any`).
+    assert f(lambda x: x, lambda x: x, lambda x, y: x, lambda: "x")
+
+    # a callable with `*args` conforms to any positional arity.
+    def variadic(*args: object) -> str:
+        return "x"
+
+    assert f(variadic, variadic, variadic, variadic)
+
+    # a callable with defaults conforms where its required arity is met.
+    def with_default(x: str, y: int = 0) -> str:
+        return x
+
+    assert f(good_b, good_b, with_default, with_default)
+
+    # callable instances are validated via their `__call__` signature.
+    class Caller:
+        def __call__(self, x: str) -> str:
+            return x
+
+    assert f(Caller(), Caller(), good_c, Caller())
+
+
+def test_callable_subscriptions_invalid_arity():
+    """Verify error if callable does not accept the subscripted arity."""
+
+    @m.parse
+    def f(a: abc.Callable[[str, int], str]) -> abc.Callable:
+        return a
+
+    # too few positional arguments
+    with pytest.raises(
+        m.InputsError,
+        match="Takes a callable that accepts 2 positional arguments",
+    ):
+        f(lambda x: x)
+
+    # too many required positional arguments
+    with pytest.raises(
+        m.InputsError,
+        match="Takes a callable that accepts 2 positional arguments",
+    ):
+        f(lambda x, y, z: x)
+
+    # required keyword-only argument cannot be satisfied positionally
+    def kwonly(x: str, y: int, *, z: bool) -> str:
+        return x
+
+    with pytest.raises(
+        m.InputsError,
+        match="Takes a callable that accepts 2 positional arguments",
+    ):
+        f(kwonly)
+
+
+def test_callable_subscriptions_invalid_annotations():
+    """Verify error if callable annotations do not match subscriptions."""
+
+    @m.parse
+    def f(a: abc.Callable[[str], str]) -> abc.Callable:
+        return a
+
+    # parameter annotation mismatch
+    def bad_param(x: int) -> str:
+        return str(x)
+
+    with pytest.raises(
+        m.InputsError,
+        match=re.escape("Takes a callable with parameter 0 annotated as <class 'str'>"),
+    ):
+        f(bad_param)
+
+    # return annotation mismatch
+    def bad_return(x: str) -> int:
+        return len(x)
+
+    with pytest.raises(
+        m.InputsError,
+        match=re.escape("Takes a callable with return annotated as <class 'str'>"),
+    ):
+        f(bad_return)
+
+
+def test_callable_subscriptions_ellipsis_and_return():
+    """Verify `...` skips arity but the return is still validated."""
+
+    @m.parse
+    def f(a: abc.Callable[..., str]) -> abc.Callable:
+        return a
+
+    # `...` accepts any arity, including required keyword-only arguments
+    assert f(lambda: "x")
+    assert f(lambda x, y, z: "x")
+
+    def kwonly(*, z: bool) -> str:
+        return "x"
+
+    assert f(kwonly)
+
+    # unannotated return conforms (treated as `Any`)
+    assert f(lambda x: x)
+
+    # ...but a non-matching annotated return does not conform.
+    def bad_return(x: str) -> int:
+        return len(x)
+
+    with pytest.raises(
+        m.InputsError,
+        match=re.escape("Takes a callable with return annotated as <class 'str'>"),
+    ):
+        f(bad_return)
+
+
+def test_callable_subscriptions_non_introspectable():
+    """Verify validation passes where signature cannot be introspected."""
+
+    @m.parse
+    def f(a: abc.Callable[[str], str]) -> abc.Callable:
+        return a
+
+    # `range` is a built-in whose signature cannot be introspected; valimp
+    # cannot verify the subscriptions and so validation passes.
+    try:
+        inspect.signature(range)
+    except (ValueError, TypeError):
+        introspectable = False
+    else:
+        introspectable = True
+    if not introspectable:
+        assert f(range) is range
 
 
 INVALID_MSG_SIG_SINGLE = re.escape(

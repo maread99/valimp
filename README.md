@@ -11,6 +11,7 @@ This is the sole use of `valimp`. It's a single short module with no depenencies
 Works like this:
 ```python
 from valimp import parse, Parser, Coerce
+from collections.abc import Callable
 from typing import Annotated, Union, Optional, Any
 
 @parse  # add the `valimp.parse`` decorator to a public function or method
@@ -43,6 +44,9 @@ def public_function(
     h: type[int],
     # ... or of specific classes...
     i: type[Union[int, str]],  # type[int | str]
+    # validate input is a callable whose signature conforms with the
+    # subscripted argument types and return type...
+    l: Callable[[str, int], bool],
     # support for packing extra arguments if required, can be optionally typed...
     *args: Annotated[
         Union[int, float, str],  # int | float | str
@@ -58,10 +62,14 @@ def public_function(
     # support for packing excess kwargs if required, can be optionally typed...
     # **kwargs: Union[int, float]
 ) -> dict[str, Any]:
-    return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h, "i":i, "args":args, "j":j, "k":k}
+    return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h, "i":i, "l":l, "args":args, "j":j, "k":k}
+
+def conforming_callable(spam: str, foo: int) -> bool:
+    # conforms with the `Callable[[str, int], bool]` annotation of 'l'
+    return True
 
 public_function(
-    # NB parameters 'a' through 'i' can be passed positionally
+    # NB parameters 'a' through 'l' can be passed positionally
     "zero",  # a
     1.0,  # b
     {"two": 2},  # c
@@ -71,6 +79,7 @@ public_function(
     str,  # g
     bool,  # h, a subclass of int
     int,  # i, one of the subscripted classes
+    conforming_callable,  # l
     "10",  # extra arg, will be coerced to int and packed
     20,  # extra arg, will be packed
     j="keyword_arg_j",
@@ -88,6 +97,7 @@ returns:
  'g': <class 'str'>,
  'h': <class 'bool'>,
  'i': <class 'int'>,
+ 'l': <function conforming_callable at 0x...>,
  'args': (10, 20),
  'j': 'keyword_arg_j',
  'k': 1.0}
@@ -104,6 +114,7 @@ public_function(
     g=str,  # valid input
     h=str,  # INVALID, str is not int or a subclass of int
     i=bool,  # valid input
+    l=lambda spam: True,  # INVALID, accepts 1 positional arg, not 2
     j="valid input",
 )
 ```
@@ -125,6 +136,9 @@ f
 
 h
 	Takes a subclass of <class 'int'> although received '<class 'str'>'.
+
+l
+	Takes a callable that accepts 2 positional arguments, although the received callable '<function <lambda> at 0x...>' does not.
 ```
 And if the inputs do not match the signature...
 ```python
@@ -214,7 +228,6 @@ In short, if you only want to validate the type of function inputs then Pydantic
   positional-only arguments) will be ignored. Consequently valimp DOES
   allow intended positional-only arguments to be passed as keyword
   arguments.
-  - Validation of subscripted types in `collections.abc.Callable` (although Valimp will verify that the passed value is callable).
 
 `valimp` currently supports:
 * use of the following type annotations:
@@ -226,7 +239,7 @@ In short, if you only want to validate the type of function inputs then Pydantic
     * typing.Literal
     * typing.Union ( `|` from 3.10 )
     * typing.Optional ( `<cls> | None` from 3.10)
-    * collections.abc.Callable, although validation of subscripted types is **not** supported
+    * collections.abc.Callable, including subscripted types, for example `collections.abc.Callable[[str, int], bool]`, to validate that an input is a callable whose signature conforms with the subscripted argument types and return type
     * `type`, including subscripted types, for example `type[int]`, to validate that an input is a subclass of the subscripted type
 * validation of container items for the following generic classes:
     * `list`

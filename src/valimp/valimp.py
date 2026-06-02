@@ -174,9 +174,23 @@ The following type annotations are supported:
 
     collections.abc.Callable. Example:
         f(param: collections.abc.Callable)
-    Subscriptions of Callable are ignored, i.e. the following will be
-    validated in the same way as the above unsubscripted example:
+    If Callable is subscripted then the input's signature will be
+    validated against the subscripted argument types and return type. For
+    example, the following will validate that 'param' receives a callable
+    that can be called with two positional arguments:
         f(param: collections.abc.Callable[[str, int], int])
+    Validation of subscriptions is undertaken as follows:
+        - The number of positional arguments accepted by the input is
+        validated as accommodating the number of subscripted argument
+        types (unless the arguments are subscripted as `...`, for example
+        `collections.abc.Callable[..., int]`).
+        - Where the input annotates a parameter or its return, that
+        annotation is validated as matching the corresponding subscripted
+        type. Parameters and the return that are not annotated by the
+        input are not validated (they are treated as `typing.Any`).
+    Validation of subscriptions is skipped, and validation passes, if the
+    input's signature cannot be introspected (as can be the case for some
+    built-in callables).
 
     `type`. Example:
         f(param: type)
@@ -431,6 +445,169 @@ def validates_as_subclass(obj: Any, hint: type[Any] | typing._Final) -> bool:
         return False
 
 
+def get_callable_positional_params(
+    sig: inspect.Signature,
+) -> tuple[list[inspect.Parameter], inspect.Parameter | None]:
+    """Get the positional parameters of a callable's signature.
+
+    Parameters
+    ----------
+    sig
+        Signature of the callable being introspected.
+
+    Returns
+    -------
+    tuple[list[inspect.Parameter], inspect.Parameter | None]
+        [0] Positional parameters (positional-only and
+        positional-or-keyword) in order.
+
+        [1] Any variadic positional parameter (i.e. `*args`), or None
+        if the callable does not define one.
+    """
+    positional = []
+    var_positional = None
+    for param in sig.parameters.values():
+        if param.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            positional.append(param)
+        elif param.kind is inspect.Parameter.VAR_POSITIONAL:
+            var_positional = param
+    return positional, var_positional
+
+
+def validates_against_callable_hint(  # noqa: C901, PLR0911, PLR0912
+    obj: Any,
+    hint_args: tuple[Any, ...],
+    rtrn_error: bool = True,  # noqa: FBT001, FBT002
+) -> tuple[bool, TypeError | None]:
+    """Query if a callable conforms with a subscripted `Callable` hint.
+
+    Validates the signature of `obj` against the subscripted argument
+    types and return type of a `collections.abc.Callable` hint. By the
+    time this function is called `obj` will already have been verified as
+    being callable.
+
+    Validation is undertaken as follows:
+        - The number of positional arguments accepted by `obj` is
+        validated as accommodating the number of subscripted argument
+        types (unless the arguments are subscripted as `...`).
+
+        - Where `obj` annotates a parameter or its return, that
+        annotation is validated as matching the corresponding subscripted
+        type. Parameters and the return that are not annotated by `obj`
+        are not validated (they are treated as `typing.Any`).
+
+    Subscripted types cannot be verified, and validation passes, if the
+    signature of `obj` cannot be introspected (as can be the case for some
+    built-in callables).
+
+    Parameters
+    ----------
+    obj
+        Callable to validate against the subscripted hint.
+
+    hint_args
+        Arguments of the subscripted `Callable` hint as returned by
+        `typing.get_args`. Takes the form `(parameters, return)` where
+        `parameters` is either a list of the expected argument types or
+        `Ellipsis` (for `Callable[..., <return>]`).
+
+    rtrn_error
+        Whether to include an error in the return if validation fails.
+
+    Returns
+    -------
+    tuple[bool, TypeError | None]
+        [0] bool indicating if `obj` conforms with the subscripted hint.
+
+        [1] None if `obj` conforms or `rtrn_error` is False, otherwise
+        error advising why validation failed.
+    """
+    params_hint, return_hint = hint_args[0], hint_args[1]
+
+    try:
+        sig = inspect.signature(obj)
+    except (ValueError, TypeError):
+        # signature cannot be introspected, hence subscripted types cannot
+        # be verified, for example as can be the case for some built-ins.
+        return VALIDATED
+
+    try:
+        resolved = typing.get_type_hints(obj)
+    except Exception:  # noqa: BLE001
+        # annotations cannot be resolved (e.g. unresolvable forward
+        # references), fall back to the raw signature annotations.
+        resolved = {}
+
+    def annotation_of(param: inspect.Parameter) -> Any:
+        ann = resolved.get(param.name, param.annotation)
+        return None if ann is inspect.Parameter.empty else ann
+
+    if params_hint is not Ellipsis:
+        positional, var_positional = get_callable_positional_params(sig)
+        num_required = sum(
+            1 for p in positional if p.default is inspect.Parameter.empty
+        )
+        num_max = len(positional)
+        num_expected = len(params_hint)
+        has_required_kwonly = any(
+            p.kind is inspect.Parameter.KEYWORD_ONLY
+            and p.default is inspect.Parameter.empty
+            for p in sig.parameters.values()
+        )
+        if var_positional is not None:
+            accepts = num_expected >= num_required
+        else:
+            accepts = num_required <= num_expected <= num_max
+        if has_required_kwonly:
+            accepts = False
+        if not accepts:
+            if not rtrn_error:
+                return FAILED_SIMPLE
+            plural = "s" if num_expected != 1 else ""
+            return False, TypeError(
+                f"Takes a callable that accepts {num_expected} positional"
+                f" argument{plural}, although the received callable '{obj}' does"
+                f" not."
+            )
+
+        for i, expected in enumerate(params_hint):
+            if expected is typing.Any or i >= len(positional):
+                # arguments absorbed by `*args` are not validated per-position
+                continue
+            param = positional[i]
+            actual = annotation_of(param)
+            if actual is None or actual is typing.Any:
+                continue
+            if actual != expected:
+                if not rtrn_error:
+                    return FAILED_SIMPLE
+                return False, TypeError(
+                    f"Takes a callable with parameter {i} annotated as {expected},"
+                    f" although the received callable '{obj}' annotates the"
+                    f" corresponding parameter '{param.name}' as {actual}."
+                )
+
+    if return_hint is not typing.Any:
+        actual_return = resolved.get("return", sig.return_annotation)
+        if (
+            actual_return is not inspect.Signature.empty
+            and actual_return is not typing.Any
+            and actual_return != return_hint
+        ):
+            if not rtrn_error:
+                return FAILED_SIMPLE
+            return False, TypeError(
+                f"Takes a callable with return annotated as {return_hint}, although"
+                f" the received callable '{obj}' annotates its return as"
+                f" {actual_return}."
+            )
+
+    return VALIDATED
+
+
 def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
     obj: Any,
     hint: type[Any] | typing._Final,
@@ -540,8 +717,10 @@ def validates_against_hint(  # noqa: C901, PLR0911, PLR0912
         )
 
     if origin is collections.abc.Callable:
-        # validation of any subscripted types is not currently supported
-        return VALIDATED
+        if not hint_args:
+            # unsubscripted, validated as callable by the isinstance check above
+            return VALIDATED
+        return validates_against_callable_hint(obj, hint_args, rtrn_error=rtrn_error)
 
     if origin is type:
         if not hint_args or validates_as_subclass(obj, hint_args[0]):
