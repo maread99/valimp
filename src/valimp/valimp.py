@@ -10,12 +10,6 @@ The `parse` decorator provides for:
 The `parse_cls`decorator provides the same functionality for inputs to
 dataclasses.
 
-Positional-only arguments (those defined ahead of a '/' in the signature)
-are supported. As when calling an undecorated function, a positional-only
-argument can only be passed positionally; passing it by keyword will raise
-unless the signature provides for **kwargs, in which case the keyword input
-is absorbed by **kwargs (consistent with standard Python behaviour).
-
 See the tutorial for a walk-through of all functionality:
 https://github.com/maread99/valimp/blob/master/docs/tutorials/tutorial.ipynb
 
@@ -770,7 +764,7 @@ def get_missing_arg_error(missing: list[str], *, positional: bool = True) -> Typ
     )
 
 
-def validate_against_signature(
+def validate_against_signature(  # noqa: C901
     args_as_kwargs: dict[str, Any],
     kwargs: dict[str, Any],
     req_args: list[str],
@@ -790,12 +784,12 @@ def validate_against_signature(
         keyword argument).
 
     kwargs
-        Inputs for arguments receieved as keyword arguments. Key
+        Inputs for arguments received as keyword arguments. Key
         as argument name, value as received input.
 
-        NB any keyword input matching a positional-only parameter name
-        should have been removed from `kwargs` before being passed to this
-        function (such inputs are advised via `posonly_as_kwarg`).
+        NB should not include any keyword input matching the name of a
+        positional-only parameter (such inputs should be included to
+        `posonly_as_kwarg`).
 
     req_args
         List of names of required positional arguments.
@@ -861,29 +855,31 @@ def validate_against_signature(
 
     # positional-only arguments invalidly received as keyword arguments
     if posonly_as_kwarg:
+        argument = "argument" if len(posonly_as_kwarg) == 1 else "arguments"
         errors.append(
             TypeError(
-                f"Got positional-only"
-                f" argument{'s' if len(posonly_as_kwarg) > 1 else ''} passed as"
-                f" keyword argument{'s' if len(posonly_as_kwarg) > 1 else ''}:"
+                f"Received positional-only {argument} as keyword {argument}:"
                 f" {args_name_inset(posonly_as_kwarg)}."
             )
         )
 
     # missing required arguments
     all_as_kwargs = args_as_kwargs | kwargs
-    # a positional-only argument can only be satisfied by being received
-    # positionally - it is missing if it was not received positionally (any
-    # keyword input matching its name will have been removed from `kwargs`).
-    # Such an argument is not flagged as missing if it was received as a
-    # keyword argument that could not be absorbed by **kwargs, as this is
-    # advised separately via `posonly_as_kwarg`.
-    missing = [
-        a
-        for a in req_args
-        if a not in posonly_as_kwarg
-        and (a not in all_as_kwargs or (a in posonly and a not in args_as_kwargs))
-    ]
+    missing = []
+    for a in req_args:
+        if a in posonly_as_kwarg:
+            continue  # already considered in `posonly_as_kwarg` TypeError
+        # a positional-only argument can only be satisfied by being received
+        # positionally - it is missing if it was not received positionally.
+        posonly_missing = a in posonly and a not in args_as_kwargs
+        if posonly_missing or a not in all_as_kwargs:
+            # Note that `a not in all_as_kwargs` is not enough as if a
+            # keyword argument was validly passed with the same name as a
+            # positional-only argument (i.e. if the sig included **kwargs)
+            # then the name of the missing positional-only arg *would* appear
+            # in `all_as_kwargs`.
+            missing.append(a)
+
     if missing:
         errors.append(get_missing_arg_error(missing, positional=True))
 
@@ -1033,13 +1029,13 @@ def get_unreceived_kwargs(
     return {k: v for k, v in spec.kwonlydefaults.items() if k not in names_received}
 
 
-def apply_metadata(
+def apply_coerce_and_parser(
     name: str,
     obj: Any,
     hint: type[Any] | typing._Final,
     params: dict[str, Any],
 ) -> Any:
-    """Apply `Coerce` and `Parser` metadata of a hint to an input.
+    """Apply any `Coerce` and `Parser` in metadata of a hint to an input.
 
     Parameters
     ----------
@@ -1142,18 +1138,26 @@ def parse(  # noqa: C901
             if hint:
                 del hints_[spec.varargs]
 
-        # positional-only parameters cannot be bound by keyword. Remove any
-        # keyword input that matches a positional-only parameter name: it does
-        # not bind to that parameter, rather it will either be absorbed by a
+        # Remove any keyword input that matches a positional-only parameter name:
+        # it does not bind to that name, rather it will either be absorbed by a
         # **kwargs parameter (if provided for) or is invalid. (Note that if
         # there is a **kwargs parameter then any passed kwarg with a name
         # that matches a positional-only argument will be considered valid and
         # included to **kwargs, for example it's valid to call function
         # `def g(a, /, **kwargs: int)` with `g(1, a=2, b=3)`, in which case
-        # **kwags will be received as `{'a': 2, 'b': 3}`.)
+        # **kwags will be received as `{'a': 2, 'b': 3}` - this is the standard
+        # Python behaviour.)
         # Popping from kwargs necessary here to distinguish between a positional
-        # argument passed positionally and as a kwarg
-        posonly_as_kwarg = {
+        # argument passed positionally and a keyword argument being passed with
+        # the same name (to be absorbed by **kwargs or to be considered invalid).
+        # When later in the code all parameters (positional and kwarg) are
+        # consoliated to `params_as_kwargs` that dict will include all
+        # positional-only arguments but it will not include any keyword arguments
+        # with the same name as a positional-only argument - such keyword
+        # arguments are instead held in this `kwarg_name_as_posonly` dict. (Why?
+        # Because they both have the same name - they can't both be represented
+        # in the same dictionary.)
+        kwarg_name_as_posonly = {
             name: kwargs.pop(name) for name in posonly_args if name in kwargs
         }
 
@@ -1167,8 +1171,8 @@ def parse(  # noqa: C901
                 del kwargs[name]
             extra_kwargs = []
             # no **kwargs to absorb positional-only inputs received by keyword
-            posonly_kwarg_errors = list(posonly_as_kwarg)
-            posonly_as_kwarg = {}
+            posonly_kwarg_errors = list(kwarg_name_as_posonly)
+            kwarg_name_as_posonly = {}
         else:  # extra kwargs provided for, e.g. with **kwargs
             excess_kwargs = []
             # positional-only inputs received by keyword are absorbed by **kwargs
@@ -1197,10 +1201,8 @@ def parse(  # noqa: C901
             for k, v in (args_as_kwargs | kwargs).items()
             if (k in all_param_names + extra_kwargs) or k.startswith(name_extra_args)
         }
-        # note that `posonly_as_kwarg` will not included to the above
-        # `params_as_kwargs` (they can't be as they would share the same
-        # name as the positional argument - can't have two keys with the
-        # same value)
+        # note that `kwarg_name_as_posonly` will not included to the above
+        # `params_as_kwargs` - see comment further above for `kwarg_name_as_posonly`.
 
         ann_errors = validate_against_hints(
             params_as_kwargs, hints_, no_item_validation=no_item_validation
@@ -1209,18 +1211,16 @@ def parse(  # noqa: C901
         # now consider any inputs absorbed by **kwargs that shared the same
         # name as a positional-only argument. Validate these against the
         # variadic type hint for **kwargs
-        if posonly_as_kwarg and varkw_hint is not None:
+        if kwarg_name_as_posonly and varkw_hint is not None:
             posonly_errors = validate_against_hints(
-                posonly_as_kwarg,
-                dict.fromkeys(posonly_as_kwarg, varkw_hint),
+                kwarg_name_as_posonly,
+                dict.fromkeys(kwarg_name_as_posonly, varkw_hint),
                 no_item_validation=no_item_validation,
             )
-            # disambiguate the key only where the same name already has an
-            # error from a positional-only argument received positionally,
-            # so that both errors are reported rather than one overriding
-            # the other.
+            # disambiguate names that refer to keyword arguments received
+            # to **kwargs from positional-only args for the same name.
             for name, error in posonly_errors.items():
-                key = name if name not in ann_errors else f"{name} (**{spec.varkw})"
+                key = f"{name} (**{spec.varkw})"
                 ann_errors[key] = error
 
         if sig_errors or ann_errors:
@@ -1239,7 +1239,7 @@ def parse(  # noqa: C901
         new_kwargs: dict[str, Any] = {}
         for name, obj in all_as_kwargs.items():
             if name in hints_:
-                obj = apply_metadata(  # noqa: PLW2901
+                obj = apply_coerce_and_parser(  # noqa: PLW2901
                     name, obj, hints_[name], new_kwargs.copy()
                 )
             if name.startswith(name_extra_args):
@@ -1252,12 +1252,11 @@ def parse(  # noqa: C901
             new_args.append(new_kwargs[arg_name])
             del new_kwargs[arg_name]
 
-        # add positional-only inputs received by keyword and absorbed by
-        # **kwargs (these never bind to the positional-only parameter, hence
-        # are added after extracting the positional arguments).
-        for name, obj in posonly_as_kwarg.items():
+        # add inputs absorbed by **kwargs that shared the same name as a
+        # positional-only argument.
+        for name, obj in kwarg_name_as_posonly.items():
             if varkw_hint is not None:
-                obj = apply_metadata(  # noqa: PLW2901
+                obj = apply_coerce_and_parser(  # noqa: PLW2901
                     name, obj, varkw_hint, new_kwargs.copy()
                 )
             new_kwargs[name] = obj
