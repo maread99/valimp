@@ -2366,6 +2366,44 @@ def test_positional_only_absorbed_kwargs_validated():
         g(1, a="not an int")
 
 
+def test_positional_only_absorbed_kwargs_name_collision_errors():
+    """Verify both errors reported when a colliding name is doubly invalid.
+
+    When a positional-only argument is received both positionally and as a
+    keyword (absorbed by **kwargs), and both values are invalid against
+    their respective type annotations, both errors should be reported (the
+    absorbed value's error keyed distinctly so it does not override the
+    positional argument's error).
+    """
+
+    @m.parse
+    def f(a: str, /, **kwargs: int) -> tuple:
+        return a, kwargs
+
+    # positional 'a' (1) invalid against `str`, absorbed 'a' ("x") invalid
+    # against the **kwargs hint `int` - both errors reported
+    msg = (
+        "The following inputs to 'f' do not conform with the corresponding"
+        " type annotation:"
+        "\n\na\n\tTakes type <class 'str'> although received '1' of type"
+        " <class 'int'>."
+        "\n\na (**kwargs)\n\tTakes type <class 'int'> although received 'x'"
+        " of type <class 'str'>."
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f(1, a="x")
+
+    # only the absorbed value is invalid (positional 'a' valid) - the error
+    # is reported under the plain name (no disambiguation required)
+    msg = (
+        "The following inputs to 'f' do not conform with the corresponding"
+        " type annotation:\n\na\n\tTakes type <class 'int'> although received"
+        " 'x' of type <class 'str'>."
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f("ok", a="x")
+
+
 def test_positional_only_method():
     """Verify positional-only support for a decorated method."""
 

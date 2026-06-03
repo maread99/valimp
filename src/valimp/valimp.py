@@ -1210,13 +1210,18 @@ def parse(  # noqa: C901
         # name as a positional-only argument. Validate these against the
         # variadic type hint for **kwargs
         if posonly_as_kwarg and varkw_hint is not None:
-            ann_errors.update(
-                validate_against_hints(
-                    posonly_as_kwarg,
-                    dict.fromkeys(posonly_as_kwarg, varkw_hint),
-                    no_item_validation=no_item_validation,
-                )
+            posonly_errors = validate_against_hints(
+                posonly_as_kwarg,
+                dict.fromkeys(posonly_as_kwarg, varkw_hint),
+                no_item_validation=no_item_validation,
             )
+            # disambiguate the key only where the same name already has an
+            # error from a positional-only argument received positionally,
+            # so that both errors are reported rather than one overriding
+            # the other.
+            for name, error in posonly_errors.items():
+                key = name if name not in ann_errors else f"{name} (**{spec.varkw})"
+                ann_errors[key] = error
 
         if sig_errors or ann_errors:
             raise InputsError(f.__name__, sig_errors, ann_errors)
