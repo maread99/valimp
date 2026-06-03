@@ -1100,13 +1100,6 @@ def parse(  # noqa: C901
     if f is None:
         return functools.partial(parse, no_item_validation=no_item_validation)
     spec = inspect.getfullargspec(f)
-    # `inspect.getfullargspec` does not distinguish positional-only parameters
-    # (they are included to `spec.args`), hence interrogate the signature.
-    posonly_args = [
-        name
-        for name, param in inspect.signature(f).parameters.items()
-        if param.kind is inspect.Parameter.POSITIONAL_ONLY
-    ]
     hints = typing.get_type_hints(f, include_extras=True)
     hints = fix_hints_for_none_default(hints, spec)
     req_args = spec.args if spec.defaults is None else spec.args[: -len(spec.defaults)]
@@ -1119,6 +1112,14 @@ def parse(  # noqa: C901
     )
     name_extra_args = "_" + spec.varargs if spec.varargs is not None else "_a5f12_3adz"
 
+    # necessary to interrogate the signature as `inspect.getfullargspec` does not
+    # distinguish positional-only parameters (they are included to `spec.args`).
+    posonly_args = [
+        name
+        for name, param in inspect.signature(f).parameters.items()
+        if param.kind is inspect.Parameter.POSITIONAL_ONLY
+    ]
+
     @functools.wraps(f)
     def wrapped_f(*args, **kwargs) -> Any:  # noqa: C901, PLR0912
         hints_ = hints.copy()
@@ -1126,10 +1127,10 @@ def parse(  # noqa: C901
 
         # handle extra args
         extra_args = args[len(spec.args) :]
-        if spec.varargs is None:  # no provision for extra args, e.g. no *args in sig
+        if spec.varargs is None:  # no variadic positional parameter (no *args in sig)
             excess_args = extra_args
             extra_args = ()
-        else:  # extra args provided for, e.g. with *args
+        else:  # extra args provided for, e.g. within *args
             excess_args = ()
             # add a hint for each extra arg
             hint = hints.get(spec.varargs, False)
@@ -1144,15 +1145,23 @@ def parse(  # noqa: C901
         # positional-only parameters cannot be bound by keyword. Remove any
         # keyword input that matches a positional-only parameter name: it does
         # not bind to that parameter, rather it will either be absorbed by a
-        # **kwargs parameter (if provided for) or is invalid.
+        # **kwargs parameter (if provided for) or is invalid. (Note that if
+        # there is a **kwargs parameter then any passed kwarg with a name
+        # that matches a positional-only argument will be considered valid and
+        # included to **kwargs, for example it's valid to call function
+        # `def g(a, /, **kwargs: int)` with `g(1, a=2, b=3)`, in which case
+        # **kwags will be received as `{'a': 2, 'b': 3}`.)
+        # Popping from kwargs necessary here to distinguish between a positional
+        # argument passed positionally and as a kwarg
         posonly_as_kwarg = {
             name: kwargs.pop(name) for name in posonly_args if name in kwargs
         }
 
         # hint for any **kwargs parameter (None if no **kwargs or **kwargs not typed)
-        varkw_hint: type[Any] | typing._Final | None = None
+        varkw_hint: type[Any] | typing._Final | None
         extra_kwargs = [a for a in kwargs if a not in all_param_names]
         if spec.varkw is None:  # no provision for extra kwargs, e.g. no **kwargs in sig
+            varkw_hint = None
             excess_kwargs = extra_kwargs
             for name in excess_kwargs:
                 del kwargs[name]
@@ -1182,17 +1191,24 @@ def parse(  # noqa: C901
             posonly_kwarg_errors,
         )
 
-        params_as_kwargs = {  # remove arguments not provided for in signature
+        # remove arguments not provided for in signature
+        params_as_kwargs = {
             k: v
             for k, v in (args_as_kwargs | kwargs).items()
             if (k in all_param_names + extra_kwargs) or k.startswith(name_extra_args)
         }
+        # note that `posonly_as_kwarg` will not included to the above
+        # `params_as_kwargs` (they can't be as they would share the same
+        # name as the positional argument - can't have two keys with the
+        # same value)
 
         ann_errors = validate_against_hints(
             params_as_kwargs, hints_, no_item_validation=no_item_validation
         )
-        # validate positional-only inputs absorbed by **kwargs against the
-        # **kwargs type annotation (if any).
+
+        # now consider any inputs absorbed by **kwargs that shared the same
+        # name as a positional-only argument. Validate these against the
+        # variadic type hint for **kwargs
         if posonly_as_kwarg and varkw_hint is not None:
             ann_errors.update(
                 validate_against_hints(
