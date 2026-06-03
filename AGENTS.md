@@ -36,21 +36,21 @@ See @pyproject.toml for project metadata and dependencies.
         draft-release-notes.yml   # Drafts release notes from merged PRs
         release.yml               # Releases a new version to PyPI
     release-drafter.yml           # Configuration for release notes drafter
-docs/                             # Documentation and example notebooks
+docs/                             # Documentation
     tutorials/
         tutorial.ipynb            # Walk-through of all functionality
-    readme_examples.ipynb         # README examples with explanatory comments
+    readme_examples.ipynb         # README examples
 src/
     valimp/
         valimp.py                 # Single-module source implementing all functionality
 tests/
-    test_valimp.py
+    test_valimp.py                # All tests (comprehensive test suite)
 .pre-commit-config.yaml
 .python-version                   # Pinned python version
 AGENTS.md
 CLAUDE.md
 LICENSE.txt
-MANIFEST.in                       # Specifies non-python files for source distribution
+MANIFEST.in
 README.md
 mypy.ini
 pyproject.toml
