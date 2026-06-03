@@ -2249,7 +2249,9 @@ def test_positional_only_as_keyword_invalid():
     # single positional-only argument passed as keyword
     msg = (
         "Inputs to 'f' do not conform with the function signature:"
-        "\n\nReceived positional-only argument as keyword argument: 'a'."
+        "\n\nGot positional-only argument as keyword argument (and"
+        " signature makes no provision for **kwargs that would otherwise"
+        " receive it): 'a'."
     )
     with pytest.raises(m.InputsError, match=re.escape(msg)):
         f(a=1, b="x")
@@ -2261,8 +2263,9 @@ def test_positional_only_as_keyword_invalid():
     # multiple positional-only arguments passed as keyword
     msg = (
         "Inputs to 'g' do not conform with the function signature:"
-        "\n\nReceived positional-only arguments as keyword arguments:"
-        " 'a' and 'b'."
+        "\n\nGot positional-only arguments as keyword arguments (and"
+        " signature makes no provision for **kwargs that would otherwise"
+        " receive them): 'a' and 'b'."
     )
     with pytest.raises(m.InputsError, match=re.escape(msg)):
         g(a=1, b="x", c=3)
@@ -2281,7 +2284,9 @@ def test_positional_only_as_keyword_with_other_sig_errors():
     msg = (
         "Inputs to 'f' do not conform with the function signature:"
         "\n\nGot unexpected keyword argument: 'not_a_kwarg'."
-        "\n\nReceived positional-only argument as keyword argument: 'b'."
+        "\n\nGot positional-only argument as keyword argument (and"
+        " signature makes no provision for **kwargs that would otherwise"
+        " receive it): 'b'."
         "\n\nMissing 1 positional argument: 'c'."
     )
     with pytest.raises(m.InputsError, match=re.escape(msg)):
@@ -2421,7 +2426,9 @@ def test_positional_only_method():
 
     msg = (
         "Inputs to 'meth' do not conform with the function signature:"
-        "\n\nReceived positional-only argument as keyword argument: 'b'."
+        "\n\nGot positional-only argument as keyword argument (and"
+        " signature makes no provision for **kwargs that would otherwise"
+        " receive it): 'b'."
     )
     with pytest.raises(m.InputsError, match=re.escape(msg)):
         inst.meth(1, b=2, c=3)

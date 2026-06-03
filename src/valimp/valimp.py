@@ -856,10 +856,12 @@ def validate_against_signature(  # noqa: C901
     # positional-only arguments invalidly received as keyword arguments
     if posonly_as_kwarg:
         argument = "argument" if len(posonly_as_kwarg) == 1 else "arguments"
+        it_them = "it" if len(posonly_as_kwarg) == 1 else "them"
         errors.append(
             TypeError(
-                f"Received positional-only {argument} as keyword {argument}:"
-                f" {args_name_inset(posonly_as_kwarg)}."
+                f"Got positional-only {argument} as keyword {argument} (and"
+                " signature makes no provision for **kwargs that would otherwise"
+                f" receive {it_them}): {args_name_inset(posonly_as_kwarg)}."
             )
         )
 
