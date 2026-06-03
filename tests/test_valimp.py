@@ -2214,3 +2214,221 @@ def test_no_item_validation_parse_cls_arg():
     )
     with pytest.raises(m.InputsError, match=re.escape(msg)):
         DataCls("not a list", {0: "val0"})
+
+
+def test_positional_only_valid():
+    """Verify positional-only arguments can be passed positionally."""
+
+    @m.parse
+    def f(
+        a: Annotated[Union[int, str], m.Coerce(str)],
+        b: Annotated[int, m.Parser(lambda _n, obj, _p: obj + 1)],
+        /,
+        c: int,
+        d: int = 3,
+    ) -> tuple:
+        return a, b, c, d
+
+    # all positional-only args passed positionally, including coerce/parse
+    assert f(5, 10, 2) == ("5", 11, 2, 3)
+    assert f(5, 10, 2, 4) == ("5", 11, 2, 4)
+    # the positional-or-keyword args can still be passed by keyword
+    assert f(5, 10, c=2, d=4) == ("5", 11, 2, 4)
+
+
+def test_positional_only_as_keyword_invalid():
+    """Verify error if positional-only argument passed as keyword.
+
+    Verifies for a function that does not provide for **kwargs.
+    """
+
+    @m.parse
+    def f(a: int, /, b: str) -> tuple:
+        return a, b
+
+    # single positional-only argument passed as keyword
+    msg = (
+        "Inputs to 'f' do not conform with the function signature:"
+        "\n\nGot positional-only argument as keyword argument (and"
+        " signature makes no provision for **kwargs that would otherwise"
+        " receive it): 'a'."
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f(a=1, b="x")
+
+    @m.parse
+    def g(a: int, b: str, /, c: int) -> tuple:
+        return a, b, c
+
+    # multiple positional-only arguments passed as keyword
+    msg = (
+        "Inputs to 'g' do not conform with the function signature:"
+        "\n\nGot positional-only arguments as keyword arguments (and"
+        " signature makes no provision for **kwargs that would otherwise"
+        " receive them): 'a' and 'b'."
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        g(a=1, b="x", c=3)
+
+
+def test_positional_only_as_keyword_with_other_sig_errors():
+    """Verify positional-only error reported alongside other errors."""
+
+    @m.parse
+    def f(a: int, b: str, /, c: int, d: str = "hi", *, e: bool = False) -> tuple:
+        return a, b, c
+
+    # 'a' passed positionally, as required
+    # 'b' passed as keyword (positional-only)
+    # 'c' missing and an unexpected keyword argument received.
+    msg = (
+        "Inputs to 'f' do not conform with the function signature:"
+        "\n\nGot unexpected keyword argument: 'not_a_kwarg'."
+        "\n\nGot positional-only argument as keyword argument (and"
+        " signature makes no provision for **kwargs that would otherwise"
+        " receive it): 'b'."
+        "\n\nMissing 1 positional argument: 'c'."
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f(1, b="x", not_a_kwarg="foo")
+
+
+def test_positional_only_absorbed_by_kwargs():
+    """Verify positional-only name as keyword is absorbed by **kwargs.
+
+    Matches standard Python behaviour where a keyword argument matching a
+    positional-only parameter name is absorbed by **kwargs rather than
+    binding to the parameter.
+    """
+
+    @m.parse
+    def f(a: int, /, **kwargs: int) -> tuple:
+        return a, kwargs
+
+    # 'a' passed positionally, 'a' as keyword absorbed by **kwargs
+    assert f(1, a=2, b=3) == (1, {"a": 2, "b": 3})
+    # only positional 'a'
+    assert f(5, x=9) == (5, {"x": 9})
+
+
+def test_positional_only_absorbed_by_kwargs_default():
+    """Verify absorption by **kwargs when positional-only arg takes default."""
+
+    @m.parse
+    def f(a: str, b: int = 0, /, **kwargs: int) -> tuple:
+        return a, b, kwargs
+
+    # 'b' not passed positionally so takes default, keyword 'b' to **kwargs
+    assert f("a", b=3, x=2) == ("a", 0, {"b": 3, "x": 2})
+
+
+def test_positional_only_required_missing_with_kwargs():
+    """Verify required positional-only arg flagged missing despite **kwargs.
+
+    A keyword matching the positional-only parameter name is absorbed by
+    **kwargs and does not satisfy the (required) positional-only parameter.
+    """
+
+    @m.parse
+    def f(a: int, /, **kwargs: int) -> tuple:
+        return a, kwargs
+
+    msg = (
+        "Inputs to 'f' do not conform with the function signature:"
+        "\n\nMissing 1 positional argument: 'a'."
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f(a=2, b=3)
+
+
+def test_positional_only_absorbed_kwargs_validated():
+    """Verify values absorbed by **kwargs are validated and coerced.
+
+    Includes verification for a value absorbed under a positional-only
+    parameter name.
+    """
+
+    @m.parse
+    def f(
+        a: int,
+        /,
+        **kwargs: Annotated[Union[int, str], m.Coerce(str)],
+    ) -> tuple:
+        return a, kwargs
+
+    # keyword 'a' absorbed to **kwargs and coerced to str
+    # keyword 'b' coerced to str against the **kwargs hint
+    assert f(1, a=2, b=3) == (1, {"a": "2", "b": "3"})
+
+    # absorbed value that does not conform with the **kwargs hint
+    @m.parse
+    def g(a: str, /, **kwargs: Union[list, tuple]) -> tuple:
+        return a, kwargs
+
+    msg = (
+        "The following inputs to 'g' do not conform with the corresponding"
+        " type annotation:\n\na (**kwargs)\n\tTakes input that conforms with"
+        " <(<class 'list'>, <class 'tuple'>)>"
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        g("1", a="not an int")
+
+
+def test_positional_only_absorbed_kwargs_name_collision_errors():
+    """Verify both errors reported when a colliding name is doubly invalid.
+
+    When a keyword argument is received with the same name as a
+    positional-only argument, and both values are invalid against their
+    their respective type annotations (with the kwarg being absorbed within
+    **kwargs), both errors should be reported.
+    """
+
+    @m.parse
+    def f(a: str, /, **kwargs: int) -> tuple:
+        return a, kwargs
+
+    # positional 'a' (1) invalid against `str`, absorbed 'a' ("x") invalid
+    # against the **kwargs hint `int` - both errors reported
+    msg = (
+        "The following inputs to 'f' do not conform with the corresponding"
+        " type annotation:"
+        "\n\na\n\tTakes type <class 'str'> although received '1' of type"
+        " <class 'int'>."
+        "\n\na (**kwargs)\n\tTakes type <class 'int'> although received 'x'"
+        " of type <class 'str'>."
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f(1, a="x")
+
+    # only the absorbed value is invalid (positional 'a' valid)
+    msg = (
+        "The following inputs to 'f' do not conform with the corresponding"
+        " type annotation:\n\na (**kwargs)\n\tTakes type <class 'int'>"
+        " although received 'x' of type <class 'str'>."
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        f("ok", a="x")
+
+
+def test_positional_only_method():
+    """Verify positional-only support for a decorated method."""
+
+    class A:
+        """Class to hold decorated method."""
+
+        @m.parse
+        def meth(self, a: int, b: int, /, c: int) -> tuple:
+            return a, b, c
+
+    inst = A()
+    assert inst.meth(1, 2, 3) == (1, 2, 3)
+    assert inst.meth(1, 2, c=3) == (1, 2, 3)
+
+    msg = (
+        "Inputs to 'meth' do not conform with the function signature:"
+        "\n\nGot positional-only argument as keyword argument (and"
+        " signature makes no provision for **kwargs that would otherwise"
+        " receive it): 'b'."
+    )
+    with pytest.raises(m.InputsError, match=re.escape(msg)):
+        inst.meth(1, b=2, c=3)
