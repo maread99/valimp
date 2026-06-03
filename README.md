@@ -19,12 +19,12 @@ def public_function(
     a: str,
     /,  # support for positional-only arguments
     # support for type unions
-    b: Union[int, float],  # or from Python 3.10 `int | float`
+    b: int | float,  # or Python 3.9 `Union[int, float]`
     # validate type of container items
-    c: dict[str, Union[int, float]],  # dict[str, int | float]
+    c: dict[str, int | float],  # dict[str, Union[int, float]]
     # coerce input to a specific type
     d: Annotated[
-        Union[int, float, str],  # int | float | str
+        int | float | str,  # Union[int, float, str]
         Coerce(int)
     ],
     # parse input with reference to earlier inputs...
@@ -34,7 +34,7 @@ def public_function(
     ],
     # coerce and parse input...
     f: Annotated[
-        Union[str, int],  # str | int
+        str | int,  # Union[str, int]
         Coerce(str),
         Parser(lambda name, obj, _: obj + f"_{name}")
     ],
@@ -43,21 +43,21 @@ def public_function(
     # validate input is subclass of a specific class (or that class itself) ...
     h: type[int],
     # ... or of specific classes...
-    i: type[Union[int, str]],  # type[int | str]
+    i: type[int | str],  #  type[Union[int, str]]
     # support for packing extra arguments if required, can be optionally typed...
     *args: Annotated[
-        Union[int, float, str],  # int | float | str
+        int | float | str,  # Union[int, float, str]
         Coerce(int)
     ],
     # support for optional types
-    j: Optional[str],  # str | None
+    j: str | None,  # Optional[str]
     # define default values dynamically with reference to earlier inputs
     k: Annotated[
-        Optional[float],  # float | None
+        float | None,  # Optional[float]
         Parser(lambda _, obj, params: params["b"] if obj is None else obj)
     ] = None,
     # support for packing excess kwargs if required, can be optionally typed...
-    # **kwargs: Union[int, float]
+    # **kwargs: int | float  # Union[int, float]
 ) -> dict[str, Any]:
     return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h, "i":i, "args":args, "j":j, "k":k}
 
@@ -86,9 +86,9 @@ returns:
  'd': 3,
  'e': 'four_e_zero',
  'f': '5_f',
- 'g': <class 'str'>,
- 'h': <class 'bool'>,
- 'i': <class 'int'>,
+ 'g': str,
+ 'h': bool,
+ 'i': int,
  'args': (10, 20),
  'j': 'keyword_arg_j',
  'k': 1.0}
@@ -171,7 +171,7 @@ class ADataclass:
     
     a: str
     b: Annotated[
-        Union[str, int],
+        str | int,  # Union[str, int]
         Coerce(str),
         Parser(lambda name, obj, params: obj + f" {name} {params['a']}")
     ]
