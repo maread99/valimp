@@ -17,6 +17,8 @@ from typing import Annotated, Union, Optional, Any
 def public_function(
     # validate against built-in or custom types
     a: str,
+    # 'a' is positional-only as it appears ahead of the '/'
+    /,
     # support for type unions
     b: Union[int, float],  # or from Python 3.10 `int | float`
     # validate type of container items
@@ -61,7 +63,8 @@ def public_function(
     return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h, "i":i, "args":args, "j":j, "k":k}
 
 public_function(
-    # NB parameters 'a' through 'i' can be passed positionally
+    # NB 'a' is positional-only (must be passed positionally); 'b' through
+    # 'i' can also be passed positionally
     "zero",  # a
     1.0,  # b
     {"two": 2},  # c
@@ -95,7 +98,7 @@ returns:
  And if there are invalid inputs...
 ```python
 public_function(
-    a=["not a string"],  # INVALID
+    ["not a string"],  # a, positional-only, passed positionally; INVALID
     b="not an int or a float",  # INVALID
     c={2: "two"},  # INVALID, key not a str and value not an int or float
     d=3.2, # valid input
@@ -129,23 +132,26 @@ h
 And if the inputs do not match the signature...
 ```python
 public_function(
-    "zero",
-    "invalid input",  # invalid (not int or float), included in errors
-    {"two": 2},
-    3.2,
+    "zero",  # a, positional-only, passed positionally
+    "invalid input",  # b, invalid (not int or float), included in errors
+    {"two": 2},  # c, passed positionally...
+    3.2,  # d
     # no argument passed for required positional args 'e', 'f', 'g', 'h' and 'i'
-    a="a again",  # passing multiple values for parameter 'a'
-    # no argument passed for required keyword arg 'j'
+    a="a again",  # 'a' is positional-only: cannot be passed as a keyword arg
+    c={"three": 3},  # ...and again by keyword: passing multiple values for 'c'
     not_a_kwarg="not a kwarg",  # including an unexpected kwarg
+    # no argument passed for required keyword arg 'j'
 )
 ```
 raises:
 ```
 InputsError: Inputs to 'public_function' do not conform with the function signature:
 
-Got multiple values for argument: 'a'.
+Got multiple values for argument: 'c'.
 
 Got unexpected keyword argument: 'not_a_kwarg'.
+
+Received positional-only argument as keyword argument: 'a'.
 
 Missing 5 positional arguments: 'e', 'f', 'g', 'h' and 'i'.
 
@@ -232,6 +238,10 @@ In short, if you only want to validate the type of function inputs then Pydantic
     * `collections.abc.Mapping`
 * packing and optionally coercing, parsing and validating packed objects, i.e. objects
     received to, for example, *args and **kwargs.
+* positional-only parameters (those defined ahead of a `/` in the signature). As when
+    calling an undecorated function, a positional-only parameter can only be satisfied
+    positionally; a keyword input matching its name is absorbed by **kwargs if the
+    signature provides for **kwargs, otherwise it raises.
 
 `valimp` does NOT support:
   - Validation of subscripted types in `collections.abc.Callable`. Any subscriptions to
