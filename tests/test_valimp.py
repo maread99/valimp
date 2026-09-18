@@ -103,7 +103,7 @@ def f() -> abc.Iterator[abc.Callable]:
         t: abc.Callable[[str, int], str],
         u: abc.Callable[..., str],
         v: abc.Callable[..., str],
-        w: Union[int, str, None, Literal["spam", "foo"]],
+        w: Union[int, str, Literal["spam", "foo"], None],
         x: Annotated[Union[str, int, float], "spam meta", "foo meta"],
         y: Annotated[
             Optional[Union[str, int, float]], "foo meta", m.Parser(lambda _n, o, _p: o)
@@ -213,7 +213,7 @@ def inst() -> abc.Iterator[object]:
             t: abc.Callable[[str, int], str],
             u: abc.Callable[..., str],
             v: abc.Callable[..., str],
-            w: Union[int, str, None, Literal["spam", "foo"]],
+            w: Union[int, str, Literal["spam", "foo"], None],
             x: Annotated[Union[str, int, float], "spam meta", "foo meta"],
             y: Annotated[
                 Optional[Union[str, int, float]],
@@ -324,7 +324,7 @@ def datacls() -> abc.Iterator[type]:
         t: abc.Callable[[str, int], str]
         u: abc.Callable[..., str]
         v: abc.Callable[..., str]
-        w: Union[int, str, None, Literal["spam", "foo"]]
+        w: Union[int, str, Literal["spam", "foo"], None]
         x: Annotated[Union[str, int, float], "spam meta", "foo meta"]
         y: Annotated[
             Optional[Union[str, int, float]],
@@ -402,7 +402,7 @@ def f_with_packed() -> abc.Iterator[abc.Callable]:
         t: abc.Callable[[str, int], str],
         u: abc.Callable[..., str],
         v: abc.Callable[..., str],
-        w: Union[int, str, None, Literal["spam", "foo"]],
+        w: Union[int, str, Literal["spam", "foo"], None],
         x: Annotated[Union[str, int, float], "spam meta", "foo meta"],
         y: Annotated[
             Optional[Union[str, int, float]], "foo meta", m.Parser(lambda _n, o, _p: o)
@@ -844,7 +844,7 @@ s
 	Takes type <class 'collections.abc.Callable'> although received 'not callable' of type <class 'str'>.
 
 w
-	Takes input that conforms with <(<class 'int'>, <class 'str'>, <class 'NoneType'>, typing.Literal['spam', 'foo'])> although received '['list not in union']' of type <class 'list'>.
+	Takes input that conforms with <(<class 'int'>, <class 'str'>, typing.Literal['spam', 'foo'], <class 'NoneType'>)> although received '['list not in union']' of type <class 'list'>.
 
 x
 	Takes input that conforms with <(<class 'str'>, <class 'int'>, <class 'float'>)> although received '{'dict': 'not in annotated union'}' of type <class 'dict'>.

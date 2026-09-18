@@ -40,7 +40,7 @@ indent-width = 4
 # Assume Python 3.9
 target-version = "py39"
 
-[lint]  
+[lint]
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
 unfixable = []
@@ -66,7 +66,9 @@ ignore = [
     "FIX002",  # line-contains-todo.  Ignore here to pass CI tests.
     "D105",  # undocumented-magic-method
     "PLR0913",  # too-many-arguments
+    "PLR0917",  # too-many-positional-arguments. Same rationale as PLR0913.
     "PLR2044",  # empty-comment. Happy to have an empty line as a comment, can serve as a eseful separator.
+    "CPY001",  # missing-copyright-notice. Project does not use per-file copyright headers.
     # Package-specific wilful ignores...
     "PLR0915",  # too-many-statements.
 ]
