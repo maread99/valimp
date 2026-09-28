@@ -13,7 +13,6 @@ Works like this:
 from valimp import parse, Parser, Coerce
 from typing import Annotated, Union, Optional, Any
 
-
 @parse  # add the `valimp.parse`` decorator to a public function or method
 def public_function(
     # validate against built-in or custom types
@@ -26,15 +25,18 @@ def public_function(
     # coerce input to a specific type
     d: Annotated[
         int | float | str,  # Union[int, float, str]
-        Coerce(int),
+        Coerce(int)
     ],
     # parse input with reference to earlier inputs...
-    e: Annotated[str, Parser(lambda name, obj, params: obj + f"_{name}_{params['a']}")],
+    e: Annotated[
+        str,
+        Parser(lambda name, obj, params: obj + f"_{name}_{params['a']}")
+    ],
     # coerce and parse input...
     f: Annotated[
         str | int,  # Union[str, int]
         Coerce(str),
-        Parser(lambda name, obj, _: obj + f"_{name}"),
+        Parser(lambda name, obj, _: obj + f"_{name}")
     ],
     # validate input is a class (rather than an instance)
     g: type,
@@ -45,33 +47,19 @@ def public_function(
     # support for packing extra arguments if required, can be optionally typed...
     *args: Annotated[
         int | float | str,  # Union[int, float, str]
-        Coerce(int),
+        Coerce(int)
     ],
     # support for optional types
     j: str | None,  # Optional[str]
     # define default values dynamically with reference to earlier inputs
     k: Annotated[
         float | None,  # Optional[float]
-        Parser(lambda _, obj, params: params["b"] if obj is None else obj),
+        Parser(lambda _, obj, params: params["b"] if obj is None else obj)
     ] = None,
     # support for packing excess kwargs if required, can be optionally typed...
     # **kwargs: int | float  # Union[int, float]
 ) -> dict[str, Any]:
-    return {
-        "a": a,
-        "b": b,
-        "c": c,
-        "d": d,
-        "e": e,
-        "f": f,
-        "g": g,
-        "h": h,
-        "i": i,
-        "args": args,
-        "j": j,
-        "k": k,
-    }
-
+    return {"a":a, "b":b, "c":c, "d":d, "e":e, "f":f, "g":g, "h":h, "i":i, "args":args, "j":j, "k":k}
 
 public_function(
     # NB 'a' must be passed positionally, 'b' through 'i' can be passed positionally
@@ -111,7 +99,7 @@ public_function(
     ["not a string"],  # INVALID
     b="not an int or a float",  # INVALID
     c={2: "two"},  # INVALID, key not a str and value not an int or float
-    d=3.2,  # valid input
+    d=3.2, # valid input
     e="valid input",
     f=5.0,  # INVALID, not a str or an int
     g=str,  # valid input
@@ -177,17 +165,16 @@ Use all the same functionality to validate, parse and coerce the fields of a dat
 from valimp import parse_cls
 import dataclasses
 
-
 @parse_cls  # place valimp decorator above the dataclass decorator
 @dataclasses.dataclass
 class ADataclass:
+
     a: str
     b: Annotated[
         str | int,  # Union[str, int]
         Coerce(str),
-        Parser(lambda name, obj, params: obj + f" {name} {params['a']}"),
+        Parser(lambda name, obj, params: obj + f" {name} {params['a']}")
     ]
-
 
 rtrn = ADataclass("I'm a and will appear at the end of b", 33)
 dataclasses.asdict(rtrn)
