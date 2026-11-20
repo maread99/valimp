@@ -140,7 +140,7 @@ The source code consists of the single file @src/valimp/valimp.py which employs 
 
 ### Formatting
 
-- format to `ruff` (Black compatible).  
+- format to `ruff` (Black compatible).
 - see @ruff.toml for configuration.
 
 ```bash
@@ -246,7 +246,7 @@ explicit takes more words, use more words.
 
 ### Comments
 
-- pay particular attention to comments starting with...: 
+- pay particular attention to comments starting with...:
     - 'NOTE'
     - 'TODO'
     - 'AIDEV-NOTE' - these comments are specifically addressed to you.
