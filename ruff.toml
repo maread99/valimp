@@ -65,7 +65,9 @@ ignore = [
     "TD003",  # missing-todo-issue
     "FIX002",  # line-contains-todo.  Ignore here to pass CI tests.
     "D105",  # undocumented-magic-method
+    "CPY001",  # missing-copyright-notice.  Project does not use file copyright headers.
     "PLR0913",  # too-many-arguments
+    "PLR0917",  # too-many-positional-arguments. Companion to PLR0913, same rationale.
     "PLR2044",  # empty-comment. Happy to have an empty line as a comment, can serve as a eseful separator.
     # Package-specific wilful ignores...
     "PLR0915",  # too-many-statements.
