@@ -2,7 +2,7 @@
 # valimp
 
 <!-- UPDATE BADGE ADDRESSES! -->
-[![PyPI](https://img.shields.io/pypi/v/valimp)](https://pypi.org/project/valimp/) ![Python Support](https://img.shields.io/pypi/pyversions/valimp) [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-D7FF64.svg)](https://github.com/astral-sh/ruff) [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/maread99/valimp/main.svg)](https://results.pre-commit.ci/latest/github/maread99/valimp/main)
+[![PyPI](https://img.shields.io/pypi/v/valimp)](https://pypi.org/project/valimp/) ![Python Support](https://img.shields.io/pypi/pyversions/valimp) [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-D7FF64.svg)](https://github.com/astral-sh/ruff) [![pre-commit](https://img.shields.io/github/actions/workflow/status/maread99/valimp/pre-commit.yml?branch=main&event=push&label=pre-commit)](https://github.com/maread99/valimp/actions/workflows/pre-commit.yml?query=branch%3Amain+event%3Apush)
 
 In Python use type hints to validate, parse and coerce inputs to **public functions and dataclasses**.
 
